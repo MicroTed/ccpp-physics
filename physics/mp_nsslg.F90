@@ -57,6 +57,7 @@ module mp_nsslg
         errmsg = ''
 
             write(0,*) '  NSSL MP init'
+            write(6,*) '  NSSL MP init'
 
         if (is_initialized) return
 
@@ -64,6 +65,9 @@ module mp_nsslg
             write(0,*) ' ----------------------------------------------------------------------------------------------------------------'
             write(0,*) ' --- WARNING --- the CCPP NSSL MP scheme is currently under development, use at your own risk --- WARNING ---'
             write(0,*) ' ----------------------------------------------------------------------------------------------------------------'
+            write(6,*) ' ----------------------------------------------------------------------------------------------------------------'
+            write(6,*) ' --- WARNING --- the CCPP NSSL MP scheme is currently under development, use at your own risk --- WARNING ---'
+            write(6,*) ' ----------------------------------------------------------------------------------------------------------------'
 !         end if
         
 !        write(0,*) 'NSSL MP init: kind_phys, kind_real = ',kind_phys, kind_real
@@ -413,9 +417,9 @@ module mp_nsslg
          write(*,*) 'qhl = ',1000.*maxval(qhl_mp)
          write(*,*) 'ccw = ',1.e-6*maxval(ccw*rho)
            IF ( 1000.*maxval(qc_mp) > 0.5 ) THEN
-             write(*,*) 'qc, ccn, ccw, tt by height'
+             write(*,*) 'qc, ccn, ccw, tt, w by height'
              DO k = 1,nlev
-               write(*,*) qc_mp(1,k)*1000., cccn(1,k)*rho(1,k)*1.e-6, ccw(1,k)*rho(1,k)*1.e-6, tgrs(1,k), cccn(1,k)*1.e-6
+               write(*,*) qc_mp(1,k)*1000., cccn(1,k)*rho(1,k)*1.e-6, ccw(1,k)*rho(1,k)*1.e-6, tgrs(1,k), w(1,k) ! cccn(1,k)*1.e-6
              ENDDO
            ENDIF
          ENDIF

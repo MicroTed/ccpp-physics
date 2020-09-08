@@ -520,7 +520,7 @@ MODULE module_mp_nssl_2mom
   
   integer :: iqvsopt = 0 ! =0 use old default for tabqvs; =1 use Bolton formulation (Rogers and Yau)
 
-  real    :: maxsupersat = 1.9 ! maximum supersaturation ratio, above which a saturation adustment is done
+  real    :: maxsupersat = 1.04 ! 1.9 ! maximum supersaturation ratio, above which a saturation adustment is done
   
 
   integer, parameter :: icespheres = 0 ! turn ice spheres (frozen droplets) on (1) or off (0). NOT COMPLETE IN WRF/ARPS/CM1 CODE!
