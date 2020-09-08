@@ -737,7 +737,8 @@
 !                           clouds, cldsa, mtopa, mbota, de_lgth)               !  ---  outputs
           endif
 
-        elseif(Model%imp_physics == 8 .or. Model%imp_physics == 6) then		       ! Thompson / WSM6 cloud micrphysics scheme
+        elseif(Model%imp_physics == 8 .or. Model%imp_physics == 6 .or. &
+               Model%imp_physics == 17 .or. Model%imp_physics == 18) then          ! Thompson / WSM6 cloud micrphysics scheme
 
           if (Model%kdt == 1) then
             Tbd%phy_f3d(:,:,Model%nleffr) = 10.

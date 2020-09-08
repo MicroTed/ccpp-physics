@@ -81,7 +81,8 @@
 !> \section gfs_mp_gen GFS MP Generic Post General Algorithm
 !> @{
       subroutine GFS_MP_generic_post_run(im, ix, levs, kdt, nrcm, ncld, nncl, ntcw, ntrac, imp_physics, imp_physics_gfdl, &
-        imp_physics_thompson, imp_physics_mg, cal_pre, lssav, ldiag3d, cplflx, cplchm, con_g, dtf, frain, rainc, rain1,   &
+        imp_physics_thompson, imp_physics_mg, imp_physics_nssl2m, imp_physics_nssl2mccn, &
+        cal_pre, lssav, ldiag3d, cplflx, cplchm, con_g, dtf, frain, rainc, rain1,   &
         rann, xlat, xlon, gt0, gq0, prsl, prsi, phii, tsfc, ice, snow, graupel, save_t, save_qv, rain0, ice0, snow0,      &
         graupel0, del, rain, domr_diag, domzr_diag, domip_diag, doms_diag, tprcp, srflag, sr, cnvprcp, totprcp, totice,   &
         totsnw, totgrp, cnvprcpb, totprcpb, toticeb, totsnwb, totgrpb, dt3dt, dq3dt, rain_cpl, rainc_cpl, snow_cpl, pwat, &
@@ -94,6 +95,7 @@
 
       integer, intent(in) :: im, ix, levs, kdt, nrcm, ncld, nncl, ntcw, ntrac
       integer, intent(in) :: imp_physics, imp_physics_gfdl, imp_physics_thompson, imp_physics_mg
+      integer, intent(in) :: imp_physics_nssl2m, imp_physics_nssl2mccn
       logical, intent(in) :: cal_pre, lssav, ldiag3d, cplflx, cplchm
 
       real(kind=kind_phys),                           intent(in)    :: dtf, frain, con_g
@@ -180,6 +182,11 @@
         snow    = snow0
       ! Do it right from the beginning for Thompson
       else if (imp_physics == imp_physics_thompson) then
+        tprcp   = max (0.,rainc + frain * rain1) ! time-step convective and explicit precip
+        graupel = frain*graupel0              ! time-step graupel
+        ice     = frain*ice0                  ! time-step ice
+        snow    = frain*snow0                 ! time-step snow
+      else if (imp_physics == imp_physics_nssl2m .or. imp_physics == imp_physics_nssl2mccn ) then
         tprcp   = max (0.,rainc + frain * rain1) ! time-step convective and explicit precip
         graupel = frain*graupel0              ! time-step graupel
         ice     = frain*ice0                  ! time-step ice
@@ -291,7 +298,8 @@
 !! and determine explicit rain/snow by snow/ice/graupel coming out directly from MP
 !! and convective rainfall from the cumulus scheme if the surface temperature is below
 !! \f$0^oC\f$.
-      if (imp_physics == imp_physics_gfdl .or. imp_physics == imp_physics_thompson) then
+      if (imp_physics == imp_physics_gfdl .or. imp_physics == imp_physics_thompson .or. &
+           imp_physics == imp_physics_nssl2m .or. imp_physics == imp_physics_nssl2mccn ) then
 ! determine convective rain/snow by surface temperature
 ! determine large-scale rain/snow by rain/snow coming out directly from MP
        

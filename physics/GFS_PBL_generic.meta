@@ -73,6 +73,22 @@
   type = integer
   intent = in
   optional = F
+[ntgl]
+  standard_name = index_for_graupel
+  long_name = tracer index for graupel
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[nthl]
+  standard_name = index_for_hail
+  long_name = tracer index for hail
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
 [ntlnc]
   standard_name = index_for_liquid_cloud_number_concentration
   long_name = tracer index for liquid number concentration
@@ -113,6 +129,38 @@
   type = integer
   intent = in
   optional = F
+[nthnc]
+  standard_name = index_for_hail_number_concentration
+  long_name = tracer index for hail number concentration
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[ntgv]
+  standard_name = index_for_graupel_volume
+  long_name = tracer index for graupel particle volume
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[nthv]
+  standard_name = index_for_hail_volume
+  long_name = tracer index for hail particle volume
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[ntccn]
+  standard_name = index_for_cccn
+  long_name = tracer index for ccn number concentration
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
 [ntwa]
   standard_name = index_for_water_friendly_aerosols
   long_name = tracer index for water friendly aerosol
@@ -124,14 +172,6 @@
 [ntia]
   standard_name = index_for_ice_friendly_aerosols
   long_name = tracer index for ice friendly aerosol
-  units = index
-  dimensions = ()
-  type = integer
-  intent = in
-  optional = F
-[ntgl]
-  standard_name = index_for_graupel
-  long_name = tracer index for graupel
   units = index
   dimensions = ()
   type = integer
@@ -425,6 +465,38 @@
   type = integer
   intent = in
   optional = F
+[nthnc]
+  standard_name = index_for_hail_number_concentration
+  long_name = tracer index for hail number concentration
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[ntgv]
+  standard_name = index_for_graupel_volume
+  long_name = tracer index for graupel particle volume
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[nthv]
+  standard_name = index_for_hail_volume
+  long_name = tracer index for hail particle volume
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[ntccn]
+  standard_name = index_for_cccn
+  long_name = tracer index for ccn number concentration
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
 [ntwa]
   standard_name = index_for_water_friendly_aerosols
   long_name = tracer index for water friendly aerosol
@@ -444,6 +516,14 @@
 [ntgl]
   standard_name = index_for_graupel
   long_name = tracer index for graupel
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[nthl]
+  standard_name = index_for_hail
+  long_name = tracer index for hail
   units = index
   dimensions = ()
   type = integer

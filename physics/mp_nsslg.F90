@@ -56,13 +56,15 @@ module mp_nsslg
         errflg = 0
         errmsg = ''
 
+            write(0,*) '  NSSL MP init'
+
         if (is_initialized) return
 
-         if (mpirank==mpiroot) then
+!         if (mpirank==mpiroot) then
             write(0,*) ' ----------------------------------------------------------------------------------------------------------------'
             write(0,*) ' --- WARNING --- the CCPP NSSL MP scheme is currently under development, use at your own risk --- WARNING ---'
             write(0,*) ' ----------------------------------------------------------------------------------------------------------------'
-         end if
+!         end if
         
 !        write(0,*) 'NSSL MP init: kind_phys, kind_real = ',kind_phys, kind_real
         IF ( kind_phys /= kind_real ) THEN
@@ -413,7 +415,7 @@ module mp_nsslg
            IF ( 1000.*maxval(qc_mp) > 0.5 ) THEN
              write(*,*) 'qc, ccn, ccw, tt by height'
              DO k = 1,nlev
-               write(*,*) qc_mp(1,k)*1000., cccn(1,k)*rho(1,k)*1.e-6, ccw(1,k)*rho(1,k)*1.e-6, tgrs(1,k), w(1,k)
+               write(*,*) qc_mp(1,k)*1000., cccn(1,k)*rho(1,k)*1.e-6, ccw(1,k)*rho(1,k)*1.e-6, tgrs(1,k), cccn(1,k)*1.e-6
              ENDDO
            ENDIF
          ENDIF
