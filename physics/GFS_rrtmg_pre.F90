@@ -21,6 +21,7 @@
       subroutine GFS_rrtmg_pre_run (Model, Grid, Sfcprop, Statein,   & ! input
           Tbd, Cldprop, Coupling,                                    &
           Radtend,                                                   & ! input/output
+          imp_physics_nssl2m, imp_physics_nssl2mccn,                 &
           imfdeepcnv, imfdeepcnv_gf,                                 &
           f_ice, f_rain, f_rimef, flgmin, cwm,                       & ! F-A mp scheme only
           lm, im, lmk, lmp,                                          & ! input
@@ -91,7 +92,8 @@
       type(GFS_coupling_type),             intent(in)    :: Coupling
 
       integer,              intent(in)  :: im, lm, lmk, lmp
-      integer,              intent(in)  :: imfdeepcnv, imfdeepcnv_gf
+      integer,              intent(in)  :: imp_physics_nssl2m, imp_physics_nssl2mccn, &
+                                           imfdeepcnv, imfdeepcnv_gf
       integer,              intent(out) :: kd, kt, kb
 
 ! F-A mp scheme only
@@ -133,7 +135,7 @@
       integer,          intent(out) :: errflg
 
       ! Local variables
-      integer :: me, nfxr, ntrac, ntcw, ntiw, ncld, ntrw, ntsw, ntgl, ncndl, ntlnc, ntinc, ntwa
+      integer :: me, nfxr, ntrac, ntcw, ntiw, ncld, ntrw, ntsw, ntgl, nthl, ncndl, ntlnc, ntinc, ntwa
 
       integer :: i, j, k, k1, k2, lsk, lv, n, itop, ibtc, LP1, lla, llb, lya, lyb
 
@@ -183,6 +185,7 @@
       ntrw  = Model%ntrw
       ntsw  = Model%ntsw
       ntgl  = Model%ntgl
+      nthl  = Model%nthl
       ntwa  = Model%ntwa
       ncndl = min(Model%ncnd,4)
 
@@ -559,13 +562,17 @@
               ccnd(i,k,4) = tracer1(i,k,ntsw)                     ! snow water
             enddo
           enddo
-        elseif (Model%ncnd == 5) then                             ! GFDL MP, Thompson, MG3
+        elseif (Model%ncnd == 5 .or. Model%ncnd == 6) then        ! GFDL MP, Thompson, MG3, NSSL
           do k=1,LMK
             do i=1,IM
               ccnd(i,k,1) = tracer1(i,k,ntcw)                     ! liquid water
               ccnd(i,k,2) = tracer1(i,k,ntiw)                     ! ice water
               ccnd(i,k,3) = tracer1(i,k,ntrw)                     ! rain water
+              IF ( Model%ncnd == 5 ) THEN
               ccnd(i,k,4) = tracer1(i,k,ntsw) + tracer1(i,k,ntgl) ! snow + graupel
+              ELSEIF ( Model%ncnd == 6 ) THEN
+              ccnd(i,k,4) = tracer1(i,k,ntsw) + tracer1(i,k,ntgl) + tracer1(i,k,nthl) ! snow + graupel
+              ENDIF
             enddo
           enddo
           ! for Thompson MP - prepare variables for calc_effr
@@ -874,7 +881,9 @@
                          clouds,cldsa,mtopa,mbota, de_lgth)            !  --- outputs
 
 
-        elseif(Model%imp_physics == Model%imp_physics_thompson) then                              ! Thompson MP
+        elseif(Model%imp_physics == Model%imp_physics_thompson .or. &
+          Model%imp_physics == imp_physics_nssl2m              .or. &
+          Model%imp_physics == imp_physics_nssl2mccn) then                              ! Thompson MP
 
           if(Model%do_mynnedmf .or.                                 & 
                            Model%imfdeepcnv == Model%imfdeepcnv_gf ) then ! MYNN PBL or GF conv
