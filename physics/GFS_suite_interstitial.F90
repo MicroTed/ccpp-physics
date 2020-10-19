@@ -497,7 +497,8 @@
                xlon, xlat, gt0, gq0, imp_physics, imp_physics_mg,       &
                imp_physics_zhao_carr, imp_physics_zhao_carr_pdf,        &
                imp_physics_gfdl, imp_physics_thompson,                  &
-               imp_physics_wsm6, imp_physics_fer_hires, prsi,           &
+               imp_physics_wsm6, imp_physics_fer_hires,                 &
+               imp_physics_nssl2m, imp_physics_nssl2mccn, prsi,         &
                prsl, prslk, rhcbot,rhcpbl, rhctop, rhcmax, islmsk,      &
                work1, work2, kpbl, kinver, ras, me,                     &
                clw, rhc, save_qc, save_qi, save_tcp, errmsg, errflg)
@@ -509,7 +510,8 @@
       ! interface variables
       integer,                                          intent(in) :: im, levs, nn, ntrac, ntcw, ntiw, ntclamt, ntrw,   &
         ntsw, ntrnc, ntsnc, ntgl, ntgnc, imp_physics, imp_physics_mg, imp_physics_zhao_carr, imp_physics_zhao_carr_pdf, &
-        imp_physics_gfdl, imp_physics_thompson, imp_physics_wsm6,imp_physics_fer_hires, me
+        imp_physics_gfdl, imp_physics_thompson, imp_physics_wsm6,imp_physics_fer_hires, imp_physics_nssl2m,             &
+        imp_physics_nssl2mccn, me
       integer, dimension(im),                           intent(in) :: islmsk, kpbl, kinver
       logical,                                          intent(in) :: cscnv, satmedmf, trans_trac, do_shoc, ltaerosol, ras
 
@@ -635,6 +637,13 @@
         else
           save_qi(:,:) = clw(:,:,1)
         endif
+      else if (imp_physics == imp_physics_nssl2m .or. imp_physics == imp_physics_nssl2mccn ) then
+        do k=1,levs
+          do i=1,im
+            clw(i,k,1) = gq0(i,k,ntiw)                    ! ice
+            clw(i,k,2) = gq0(i,k,ntcw)                    ! water
+          enddo
+        enddo
       elseif (imp_physics == imp_physics_wsm6 .or. imp_physics == imp_physics_mg .or. imp_physics == imp_physics_fer_hires) then
         do k=1,levs
           do i=1,im
@@ -662,11 +671,13 @@
 !! \htmlinclude GFS_suite_interstitial_4_run.html
 !!
     subroutine GFS_suite_interstitial_4_run (im, levs, ltaerosol, cplchm, tracers_total, ntrac, ntcw, ntiw, ntclamt, &
-      ntrw, ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, nn, imp_physics, imp_physics_gfdl, imp_physics_thompson,  &
-      imp_physics_zhao_carr, imp_physics_zhao_carr_pdf, dtf, save_qc, save_qi, con_pi,                               &
-      gq0, clw, prsl, save_tcp, con_rd, nwfa, spechum, dqdti, errmsg, errflg)
+      ntrw, ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, nn, ntccn, imp_physics, imp_physics_gfdl,                 &
+      imp_physics_thompson, imp_physics_zhao_carr, imp_physics_zhao_carr_pdf, imp_physics_nssl2m,                    &
+      imp_physics_nssl2mccn, dtf, save_qc,save_qi, con_pi, gq0, clw, prsl, save_tcp, con_rd, nwfa, spechum, dqdti,   &
+      errmsg, errflg)
 
       use machine,               only: kind_phys
+      use module_mp_nssl_2mom,   only: qccn
       use module_mp_thompson_make_number_concentrations, only: make_IceNumber, make_DropletNumber
 
       implicit none
@@ -674,8 +685,8 @@
       ! interface variables
 
       integer,                                  intent(in) :: im, levs, tracers_total, ntrac, ntcw, ntiw, ntclamt, ntrw,  &
-        ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, nn, imp_physics, imp_physics_gfdl, imp_physics_thompson,           &
-        imp_physics_zhao_carr, imp_physics_zhao_carr_pdf
+        ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, nn, ntccn, imp_physics, imp_physics_gfdl, imp_physics_thompson,    &
+        imp_physics_zhao_carr, imp_physics_zhao_carr_pdf, imp_physics_nssl2m, imp_physics_nssl2mccn
 
       logical,                                  intent(in) :: ltaerosol, cplchm
 
@@ -701,6 +712,8 @@
 
       ! local variables
       integer :: i,k,n,tracers
+      
+      real(kind=kind_phys) :: liqm, icem, xccn, xcwmas, xccw, xcimas
 
       real(kind=kind_phys), dimension(im,levs) :: rho_dryair
       real(kind=kind_phys), dimension(im,levs) :: qv_mp !< kg kg-1 (dry mixing ratio)
@@ -748,6 +761,44 @@
               gq0(i,k,ntcw) = clw(i,k,2)                     ! water
             enddo
           enddo
+
+          if (imp_physics == imp_physics_nssl2m .or. imp_physics == imp_physics_nssl2mccn ) then
+              liqm =  con_pi/6.*1.e3*(40.e-6)**3  ! 4./3.*con_pi*1.e-12
+              icem =  con_pi/6.*1.e3*(120.e-6)**3 ! 4./3.*con_pi*3.2768*1.e-14*890.
+              do k=1,levs
+                do i=1,im
+                   ! check number of available ccn
+                   IF ( imp_physics == imp_physics_nssl2mccn ) THEN
+                     xccn = gq0(i,k,ntccn)
+                   ELSE
+                     xccn = Max(0.0, qccn - gq0(i,k,ntlnc))
+                   ENDIF
+                   
+                   IF ( gq0(i,k,ntlnc) > 0.0 .and. save_qc(i,k) > 0.0 ) THEN
+                      xcwmas = Max( liqm, clw(i,k,2)/gq0(i,k,ntlnc) )
+                   ELSE
+                      xcwmas = liqm
+                   ENDIF
+
+                   IF ( gq0(i,k,ntinc) > 0.0 .and. save_qi(i,k) > 0.0 ) THEN
+                      xcimas = Max( liqm, clw(i,k,1)/gq0(i,k,ntinc) )
+                   ELSE
+                      xcimas = icem
+                   ENDIF
+                   
+                  IF ( xccn > 0.0 ) THEN
+                  xccw = Min( xccn, max(0.0, (clw(i,k,2)-save_qc(i,k))) / xcwmas )
+                  gq0(i,k,ntlnc) = gq0(i,k,ntlnc) + xccw 
+                  IF ( imp_physics == imp_physics_nssl2mccn ) THEN
+                    gq0(i,k,ntccn) = gq0(i,k,ntccn) - xccw
+                  ENDIF
+                  ENDIF
+
+                  gq0(i,k,ntinc) = gq0(i,k,ntinc)  &
+                           +  max(0.0, (clw(i,k,1)-save_qi(i,k))) / xcimas
+                enddo
+              enddo
+          endif
 
           if (imp_physics == imp_physics_thompson .and. (ntlnc>0 .or. ntinc>0)) then
             do k=1,levs
