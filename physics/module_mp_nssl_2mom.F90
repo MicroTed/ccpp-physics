@@ -221,13 +221,13 @@ MODULE module_mp_nssl_2mom
   real   , private :: auttim         = 300.      ! 10-ice rain delay time
   real   , private :: qcwmntim       = 1.0e-5    ! 10-ice rain delay min qc for time accrual
 
-#if (NMM_CORE == 1)
+!#if (NMM_CORE == 1)
 ! NMM WRF core does not have special boundary conditions for CCN, therefore set invertccn to true
-      logical, parameter :: invertccn = .true. ! =true for base state of ccn=0, =false for ccn initialized in the base state
-#else
+!      logical, parameter :: invertccn = .true. ! =true for base state of ccn=0, =false for ccn initialized in the base state
+!#else
       logical, parameter :: invertccn = .false. ! =true for base state of ccn=0, =false for ccn initialized in the base state
-#endif
-  logical :: restoreccn = .true. ! whether or not to nudge CCN back to base state (qccn) (only applies if CCNA is NOT predicted)
+!#endif
+  logical :: restoreccn = .false. ! whether or not to nudge CCN back to base state (qccn) (only applies if CCNA is NOT predicted)
   real    :: ccntimeconst = 3600.  ! time constant for CCN restore (either for CCNA or when restoreccn = true)
 
 
@@ -985,7 +985,6 @@ MODULE module_mp_nssl_2mom
                         lawson_splinter_fac, &
                         iqcinit,        &
                         ssmxinit,      &
-                        denscale,       &
                         xvdmx,          &
                         dhmn, dhmx,     &
                         fwms,fwmh,fwmhl,  &
@@ -2371,6 +2370,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
      ENDIF
      
 ! set up CCN array and some other static local values
+     IF ( .false. ) THEN
      IF ( itimestep == 1 .and. .not. invertccn .and.  present( cn ) ) THEN
      ! this is not needed for WRF 3.8 and later because it is done in physics_init, 
      ! but kept for backwards compatibility with earlier versions
@@ -2402,10 +2402,11 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
         DO jy = jts,jte
          DO kz = kts,kte
            DO ix = its,ite
-             cn(ix,kz,jy) = Max( 0.0, qccn - cn(ix,kz,jy) )
+      !       cn(ix,kz,jy) = Max( 0.0, qccn - cn(ix,kz,jy) )
            ENDDO
          ENDDO
-       ENDDO
+        ENDDO
+       ENDIF
        ENDIF
 
 !     ENDIF ! itimestep == 1
@@ -2497,7 +2498,11 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
            IF ( is_aerosol_aware .and. flag_qnwfa ) THEN
             an(ix,1,kz,lccn) = nwfa(ix,kz,jy)
            ELSEIF ( present( cn ) ) THEN
-            an(ix,1,kz,lccn) = cn(ix,kz,jy)
+            IF ( invertccn ) THEN
+             an(ix,1,kz,lccn) = qccn - cn(ix,kz,jy) 
+            ELSE
+             an(ix,1,kz,lccn) = cn(ix,kz,jy)
+            ENDIF
            ELSE
             IF ( lccna == 0 .and. ( .not. f_cnatmp ) ) THEN
               an(ix,1,kz,lccn) = qccn - ccw(ix,kz,jy)
@@ -2941,7 +2946,11 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 !           nwfa(ix,kz,jy) = Min(1.5e9, nwfa(ix,kz,jy) + nwfa2d(ix,jy)*dtp)
             IF ( kz == 1 ) nwfa(ix,kz,jy) = nwfa(ix,kz,jy) + nwfa2d(ix,jy)*dtp
          ELSEIF ( present( cn ) .and. lccn > 1 .and. .not. flag_qndrop) THEN
-           cn(ix,kz,jy) = an(ix,1,kz,lccn)
+            IF ( invertccn ) THEN
+             cn(ix,kz,jy) = qccn - an(ix,1,kz,lccn)
+            ELSE
+              cn(ix,kz,jy) = an(ix,1,kz,lccn)
+            ENDIF
          ENDIF
          IF ( lccna > 1 ) THEN
            IF ( present( cna ) .and. f_cnatmp ) THEN
@@ -2985,7 +2994,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
         DO jy = jts,jte
          DO kz = kts,kte
            DO ix = its,ite
-             cn(ix,kz,jy) = Max( 0.0, qccn - cn(ix,kz,jy) )
+!             cn(ix,kz,jy) = Max( 0.0, qccn - cn(ix,kz,jy) )
            ENDDO
          ENDDO
        ENDDO

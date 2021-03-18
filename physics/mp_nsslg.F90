@@ -15,6 +15,7 @@ module mp_nsslg
 
     private
     logical :: is_initialized = .False.
+    real :: nssl_qccn
 
     contains
 
@@ -96,6 +97,7 @@ module mp_nsslg
 
          is_initialized = .true.
 
+         nssl_params(:) = 0.0
          nssl_params(1)  = nssl_cccn
          nssl_params(2)  = nssl_alphah
          nssl_params(3)  = nssl_alphahl
@@ -108,6 +110,10 @@ module mp_nsslg
          nssl_params(10) = 100. ! nssl_rho_qs
          nssl_params(11) = 0 ! nssl_ipelec_tmp
          nssl_params(12) = 11 ! nssl_isaund
+         nssl_params(13) = 0 ! 1= turn on cccna; 0 = turn off
+         
+         nssl_qccn = nssl_cccn/1.225
+         write(*,*) 'nssl_init: nssl_qccn = ',nssl_qccn
          
          IF ( nssl_hail_on ) THEN
            ihailv = 1
@@ -142,12 +148,13 @@ module mp_nsslg
                              ccw, crw, cci, csw, chw, chl, vh, vhl,          &
                               tgrs, prslk, prsl, phii, omega, dtp,           &
                               prcp, rain, graupel, ice, snow, sr,            &
-                             refl_10cm, do_radar_ref,                        &
+                             refl_10cm, do_radar_ref, first_time_step,       &
                              re_cloud, re_ice, re_snow,                      &
                              imp_physics,                                    &
                              imp_physics_nssl2m, imp_physics_nssl2mccn,      &
                              nssl_hail_on,                                   &
                              errflg, errmsg)
+!                             spechum, cccn, cccna, qc, qr, qi, qs, qh, qhl,         &
         implicit none
         integer, intent(in) :: ncol, nlev
          real(kind_phys),           intent(in   ) :: con_g
@@ -155,20 +162,21 @@ module mp_nsslg
          ! Hydrometeors
          real(kind_phys),           intent(inout) :: spechum(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: cccn(1:ncol,1:nlev)
+!         real(kind_phys),           intent(inout) :: cccna(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qc(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qr(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qi(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qs(1:ncol,1:nlev)
-         real(kind_phys),           intent(inout) :: qh(1:ncol,1:nlev)
-         real(kind_phys),           intent(inout) :: qhl(1:ncol,1:nlev)
+         real(kind_phys),           intent(inout) :: qh(1:ncol,1:nlev)  ! graupel
+         real(kind_phys),           intent(inout) :: qhl(1:ncol,1:nlev) ! hail
          real(kind_phys),           intent(inout) :: ccw(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: crw(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: cci(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: csw(1:ncol,1:nlev)
-         real(kind_phys),           intent(inout) :: chw(1:ncol,1:nlev)
-         real(kind_phys),           intent(inout) :: chl(1:ncol,1:nlev)
-         real(kind_phys),           intent(inout) :: vh(1:ncol,1:nlev)
-         real(kind_phys),           intent(inout) :: vhl(1:ncol,1:nlev)
+         real(kind_phys),           intent(inout) :: chw(1:ncol,1:nlev) ! graupel number
+         real(kind_phys),           intent(inout) :: chl(1:ncol,1:nlev) ! hail number
+         real(kind_phys),           intent(inout) :: vh(1:ncol,1:nlev)  ! graupel volume
+         real(kind_phys),           intent(inout) :: vhl(1:ncol,1:nlev) ! hail volume
          ! State variables and timestep information
          real(kind_phys),           intent(inout) :: tgrs(1:ncol,1:nlev)
          real(kind_phys),           intent(in   ) :: prsl(1:ncol,1:nlev)
@@ -185,7 +193,7 @@ module mp_nsslg
          real(kind_phys),           intent(  out) :: sr(1:ncol)
          ! Radar reflectivity
          real(kind_phys),           intent(  out) :: refl_10cm(1:ncol,1:nlev)
-         logical,                   intent(in   ) :: do_radar_ref
+         logical,                   intent(in   ) :: do_radar_ref, first_time_step
          ! Cloud effective radii
          real(kind_phys), optional, intent(  out) :: re_cloud(1:ncol,1:nlev)
          real(kind_phys), optional, intent(  out) :: re_ice(1:ncol,1:nlev)
@@ -208,8 +216,10 @@ module mp_nsslg
          real(kind_phys) :: qr_mp(1:ncol,1:nlev)            !< kg kg-1 (dry mixing ratio)
          real(kind_phys) :: qi_mp(1:ncol,1:nlev)            !< kg kg-1 (dry mixing ratio)
          real(kind_phys) :: qs_mp(1:ncol,1:nlev)            !< kg kg-1 (dry mixing ratio)
-         real(kind_phys) :: qh_mp(1:ncol,1:nlev)            !< kg kg-1 (dry mixing ratio)
-         real(kind_phys) :: qhl_mp(1:ncol,1:nlev)           !< kg kg-1 (dry mixing ratio)
+         real(kind_phys) :: qh_mp(1:ncol,1:nlev)            !< kg kg-1 (graupel dry mixing ratio)
+         real(kind_phys) :: qhl_mp(1:ncol,1:nlev)           !< kg kg-1 (hail dry mixing ratio)
+         real(kind_phys) :: cn_mp(1:ncol,1:nlev) 
+         real(kind_phys) :: cna_mp(1:ncol,1:nlev) 
          ! create temporaries for hail in case it does not exist
          real(kind_phys) :: chl_mp(1:ncol,1:nlev)           !< kg-1 (number mixing ratio)
          real(kind_phys) :: vhl_mp(1:ncol,1:nlev)           !< m3 kg-1 (volume mixing ratio)
@@ -256,6 +266,7 @@ module mp_nsslg
          real, parameter    :: dtpmax = 300. ! 600. ! 120.
          real(kind_phys)    :: dtptmp
          integer, parameter :: ndebug = 0
+         logical, parameter :: invertccn = .false.
 
 
         errflg = 0
@@ -389,11 +400,46 @@ module mp_nsslg
            dtptmp = dtp
            ntmul = 1
         ENDIF
+        
+        IF ( first_time_step ) THEN
+          itimestep = 0
+          IF ( imp_physics == imp_physics_nssl2mccn ) THEN
+            IF ( invertccn ) THEN
+              cccn = 0
+              !cccn = nssl_qccn
+            ELSE
+              cccn = nssl_qccn
+            ENDIF
+          ENDIF
+        ELSE
+          itimestep = 2
+        ENDIF
+        
         DO n = 1,ntmul
         
         itimestep = itimestep + 1
 
          IF ( imp_physics == imp_physics_nssl2mccn ) THEN
+
+         IF ( invertccn ) THEN
+!            cn_mp = Max(0.0, nssl_qccn - Max(0.0,cccn))
+              DO k = 1,nlev
+               DO i = 1,ncol
+!                 cn_mp(i,k) = Max(0.0, nssl_qccn - Max(0.0, cccn(i,k)) )
+                 cn_mp(i,k) = Min(nssl_qccn, nssl_qccn - cccn(i,k) ) 
+               ENDDO
+              ENDDO
+            !  DO k = 1,nlev
+            !   DO i = 1,ncol
+            !     cccn(i,k) = Max(0.0, nssl_qccn - cn_mp(i,k) )
+            !     cn_mp(i,k) = cccn(i,k)
+            !   ENDDO
+            !  ENDDO
+         ELSE
+            cn_mp = cccn
+         ENDIF
+!         cna_mp = cccna
+
          CALL nssl_2mom_driver(                          &
                     ITIMESTEP=itimestep,                &
                   !   TH=th,                              &
@@ -414,7 +460,9 @@ module mp_nsslg
                      CHL=chl_mp,                       &
                      VHW=vh,                     &
                      VHL=vhl_mp,                     &
-                     cn=cccn,                        &
+!                     cn=cccn,                        &
+                     cn=cn_mp,                        &
+!                     cna=cna_mp, f_cna=.true.,           &
                      PII=prslk,                         &
                      P=prsl,                                &
                      W=w,                                &
@@ -442,9 +490,9 @@ module mp_nsslg
               !       qscuten=qscuten,                    &  ! hm
               !       qicuten=qicuten,                    &  ! hm
               !       qccuten=qccuten,                    &  ! hm
-                     re_cloud=re_cloud,                  &
-                     re_ice=re_ice,                      &
-                     re_snow=re_snow,                    &
+                     re_cloud=re_cloud_mp,                  &
+                     re_ice=re_ice_mp,                      &
+                     re_snow=re_snow_mp,                    &
                      has_reqc=has_reqc,                  & ! ala G. Thompson
                      has_reqi=has_reqi,                  & ! ala G. Thompson
                      has_reqs=has_reqs,                  & ! ala G. Thompson
@@ -452,6 +500,22 @@ module mp_nsslg
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
                                                                     )
+
+           IF ( invertccn ) THEN
+              !cccn = Max(0.0, nssl_qccn - cn_mp )
+              ! (1:ncol,1:nlev)
+              DO k = 1,nlev
+               DO i = 1,ncol
+!                 cccn(i,k) = Max(0.0, nssl_qccn - cn_mp(i,k) )
+                 cccn(i,k) = nssl_qccn - cn_mp(i,k) 
+                 !cccn(i,k) = cn_mp(i,k)
+               ENDDO
+              ENDDO
+           ELSE
+              cccn = cn_mp
+           ENDIF
+!           cccna = cna_mp
+
 
            ELSE
 
@@ -503,9 +567,9 @@ module mp_nsslg
               !       qscuten=qscuten,                    &  ! hm
               !       qicuten=qicuten,                    &  ! hm
               !       qccuten=qccuten,                    &  ! hm
-                     re_cloud=re_cloud,                  &
-                     re_ice=re_ice,                      &
-                     re_snow=re_snow,                    &
+                     re_cloud=re_cloud_mp,                  &
+                     re_ice=re_ice_mp,                      &
+                     re_snow=re_snow_mp,                    &
                      has_reqc=has_reqc,                  & ! ala G. Thompson
                      has_reqi=has_reqi,                  & ! ala G. Thompson
                      has_reqs=has_reqs,                  & ! ala G. Thompson
