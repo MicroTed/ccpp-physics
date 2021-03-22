@@ -229,6 +229,8 @@
   units = kg kg-1
   dimensions = (horizontal_dimension,vertical_dimension)
   type = real
+  kind = kind_phys
+  intent = inout
   optional = F
 [cccn]
   standard_name = cloud_condensation_nuclei_number_concentration_updated_by_physics
@@ -237,6 +239,16 @@
   dimensions = (horizontal_dimension,vertical_dimension)
   type = real
   kind = kind_phys
+  intent = inout
+  optional = F
+[cccna]
+  standard_name = activated_cloud_condensation_nuclei_number_concentration_updated_by_physics
+  long_name = number concentration of activated cloud condensation nuclei updated by physics
+  units = kg-1
+  dimensions = (horizontal_dimension,vertical_dimension)
+  type = real
+  kind = kind_phys
+  intent = inout
   optional = F
 [ccw]
   standard_name = cloud_droplet_number_concentration_updated_by_physics
@@ -299,6 +311,7 @@
   dimensions = (horizontal_dimension,vertical_dimension)
   type = real
   kind = kind_phys
+  intent = inout
   optional = F
 [vhl]
   standard_name = hail_volume_updated_by_physics
@@ -307,6 +320,7 @@
   dimensions = (horizontal_dimension,vertical_dimension)
   type = real
   kind = kind_phys
+  intent = inout
   optional = F
 [tgrs]
   standard_name = air_temperature_updated_by_physics
@@ -496,6 +510,30 @@
   units = none
   dimensions = ()
   type = logical
+  intent = in
+  optional = F
+[nssl_invertccn]
+  standard_name = nssl_invertccn
+  long_name = flag to invert CCN in NSSL micro
+  units = none
+  dimensions = ()
+  type = logical
+  intent = in
+  optional = F
+[ntccn]
+  standard_name = index_for_cloud_condensation_nuclei_number_concentration
+  long_name = tracer index for cloud condensation nuclei number concentration
+  units = index
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
+[ntccna]
+  standard_name = index_for_activated_cloud_condensation_nuclei_number_concentration
+  long_name = tracer index for activated cloud condensation nuclei number concentration
+  units = index
+  dimensions = ()
+  type = integer
   intent = in
   optional = F
 [errflg]

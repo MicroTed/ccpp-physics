@@ -144,7 +144,8 @@ module mp_nsslg
 !! \htmlinclude mp_nsslg_run.html
 !!
     subroutine mp_nsslg_run(ncol, nlev, con_g, con_rd, &
-                             spechum, cccn, qc, qr, qi, qs, qh, qhl,         &
+!                             spechum, cccn, qc, qr, qi, qs, qh, qhl,         &
+                             spechum, cccn, cccna, qc, qr, qi, qs, qh, qhl,         &
                              ccw, crw, cci, csw, chw, chl, vh, vhl,          &
                               tgrs, prslk, prsl, phii, omega, dtp,           &
                               prcp, rain, graupel, ice, snow, sr,            &
@@ -152,9 +153,8 @@ module mp_nsslg
                              re_cloud, re_ice, re_snow,                      &
                              imp_physics,                                    &
                              imp_physics_nssl2m, imp_physics_nssl2mccn,      &
-                             nssl_hail_on,                                   &
+                             nssl_hail_on, nssl_invertccn, ntccn, ntccna,    &
                              errflg, errmsg)
-!                             spechum, cccn, cccna, qc, qr, qi, qs, qh, qhl,         &
         implicit none
         integer, intent(in) :: ncol, nlev
          real(kind_phys),           intent(in   ) :: con_g
@@ -162,7 +162,7 @@ module mp_nsslg
          ! Hydrometeors
          real(kind_phys),           intent(inout) :: spechum(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: cccn(1:ncol,1:nlev)
-!         real(kind_phys),           intent(inout) :: cccna(1:ncol,1:nlev)
+         real(kind_phys),           intent(inout) :: cccna(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qc(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qr(1:ncol,1:nlev)
          real(kind_phys),           intent(inout) :: qi(1:ncol,1:nlev)
@@ -200,8 +200,9 @@ module mp_nsslg
          real(kind_phys), optional, intent(  out) :: re_snow(1:ncol,1:nlev)
          integer,                   intent(in)    :: imp_physics
          integer,                   intent(in)    :: imp_physics_nssl2m, imp_physics_nssl2mccn
-         logical,                   intent(in)    :: nssl_hail_on
-
+         logical,                   intent(in)    :: nssl_hail_on, nssl_invertccn
+         integer,                   intent(in)    :: ntccn, ntccna
+        
         integer,          intent(out)   :: errflg
         character(len=*), intent(out)   :: errmsg
 
@@ -266,7 +267,9 @@ module mp_nsslg
          real, parameter    :: dtpmax = 300. ! 600. ! 120.
          real(kind_phys)    :: dtptmp
          integer, parameter :: ndebug = 0
-         logical, parameter :: invertccn = .false.
+         logical, parameter :: convertdry = .false.
+         logical :: invertccn
+         
 
 
         errflg = 0
@@ -281,9 +284,12 @@ module mp_nsslg
             errflg = 1
             return
          end if
+         
+         invertccn = nssl_invertccn
 
          !> - Convert specific humidity/moist mixing ratios to dry mixing ratios
          qv_mp = spechum/(1.0_kind_phys-spechum)
+         IF ( convertdry ) THEN
          qc_mp = qc/(1.0_kind_phys-spechum)
          qr_mp = qr/(1.0_kind_phys-spechum)
          qi_mp = qi/(1.0_kind_phys-spechum)
@@ -291,6 +297,21 @@ module mp_nsslg
          qh_mp = qh/(1.0_kind_phys-spechum)
          IF ( nssl_hail_on ) THEN
            qhl_mp = qhl/(1.0_kind_phys-spechum)
+         ENDIF
+         ELSE
+!         qv_mp = spechum ! /(1.0_kind_phys-spechum)
+         qc_mp = qc ! /(1.0_kind_phys-spechum)
+         qr_mp = qr ! /(1.0_kind_phys-spechum)
+         qi_mp = qi ! /(1.0_kind_phys-spechum)
+         qs_mp = qs ! /(1.0_kind_phys-spechum)
+         qh_mp = qh ! /(1.0_kind_phys-spechum)
+         IF ( nssl_hail_on ) THEN
+           qhl_mp = qhl ! /(1.0_kind_phys-spechum)
+         ENDIF
+         
+         ENDIF
+         
+         IF ( nssl_hail_on ) THEN
            chl_mp = chl
            vhl_mp = vhl
          ELSE
@@ -402,7 +423,7 @@ module mp_nsslg
         ENDIF
         
         IF ( first_time_step ) THEN
-          itimestep = 0
+          itimestep = 2
           IF ( imp_physics == imp_physics_nssl2mccn ) THEN
             IF ( invertccn ) THEN
               cccn = 0
@@ -414,19 +435,15 @@ module mp_nsslg
         ELSE
           itimestep = 2
         ENDIF
-        
-        DO n = 1,ntmul
-        
-        itimestep = itimestep + 1
-
-         IF ( imp_physics == imp_physics_nssl2mccn ) THEN
-
+ 
+ 
+       IF ( imp_physics == imp_physics_nssl2mccn ) THEN
          IF ( invertccn ) THEN
 !            cn_mp = Max(0.0, nssl_qccn - Max(0.0,cccn))
               DO k = 1,nlev
                DO i = 1,ncol
-!                 cn_mp(i,k) = Max(0.0, nssl_qccn - Max(0.0, cccn(i,k)) )
-                 cn_mp(i,k) = Min(nssl_qccn, nssl_qccn - cccn(i,k) ) 
+                 cn_mp(i,k) = Max(0.0, nssl_qccn - Max(0.0, cccn(i,k)) )
+!                 cn_mp(i,k) = Min(nssl_qccn, nssl_qccn - cccn(i,k) ) 
                ENDDO
               ENDDO
             !  DO k = 1,nlev
@@ -438,7 +455,22 @@ module mp_nsslg
          ELSE
             cn_mp = cccn
          ENDIF
+          IF ( ntccna > 0 ) THEN
 !         cna_mp = cccna
+          ELSE 
+            cna_mp = 0
+          ENDIF
+        ENDIF
+       
+       
+        DO n = 1,ntmul
+        
+        itimestep = itimestep + 1
+
+
+
+         IF ( imp_physics == imp_physics_nssl2mccn ) THEN
+
 
          CALL nssl_2mom_driver(                          &
                     ITIMESTEP=itimestep,                &
@@ -462,7 +494,7 @@ module mp_nsslg
                      VHL=vhl_mp,                     &
 !                     cn=cccn,                        &
                      cn=cn_mp,                        &
-!                     cna=cna_mp, f_cna=.true.,           &
+                     cna=cna_mp, f_cna=( ntccna > 0 ),           &
                      PII=prslk,                         &
                      P=prsl,                                &
                      W=w,                                &
@@ -500,21 +532,6 @@ module mp_nsslg
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
                                                                     )
-
-           IF ( invertccn ) THEN
-              !cccn = Max(0.0, nssl_qccn - cn_mp )
-              ! (1:ncol,1:nlev)
-              DO k = 1,nlev
-               DO i = 1,ncol
-!                 cccn(i,k) = Max(0.0, nssl_qccn - cn_mp(i,k) )
-                 cccn(i,k) = nssl_qccn - cn_mp(i,k) 
-                 !cccn(i,k) = cn_mp(i,k)
-               ENDDO
-              ENDDO
-           ELSE
-              cccn = cn_mp
-           ENDIF
-!           cccna = cna_mp
 
 
            ELSE
@@ -589,7 +606,24 @@ module mp_nsslg
            ENDDO
 
           ENDDO
-         
+
+
+         IF ( imp_physics == imp_physics_nssl2mccn ) THEN
+           IF ( invertccn ) THEN
+              !cccn = Max(0.0, nssl_qccn - cn_mp )
+              ! (1:ncol,1:nlev)
+              DO k = 1,nlev
+               DO i = 1,ncol
+!                 cccn(i,k) = Max(0.0, nssl_qccn - cn_mp(i,k) )
+                 cccn(i,k) = nssl_qccn - cn_mp(i,k) 
+                 !cccn(i,k) = cn_mp(i,k)
+               ENDDO
+              ENDDO
+           ELSE
+              cccn = cn_mp
+           ENDIF
+!           cccna = cna_mp
+          ENDIF
 
 !        write(0,*) 'done nssl_2mom_driver'
 
@@ -628,6 +662,7 @@ module mp_nsslg
 
          !> - Convert dry mixing ratios to specific humidity/moist mixing ratios
          spechum = qv_mp/(1.0_kind_phys+qv_mp)
+         IF ( convertdry ) THEN
          qc      = qc_mp/(1.0_kind_phys+qv_mp)
          qr      = qr_mp/(1.0_kind_phys+qv_mp)
          qi      = qi_mp/(1.0_kind_phys+qv_mp)
@@ -635,6 +670,18 @@ module mp_nsslg
          qh      = qh_mp/(1.0_kind_phys+qv_mp)
          IF ( nssl_hail_on ) THEN
           qhl     = qhl_mp/(1.0_kind_phys+qv_mp)
+         ENDIF
+         ELSE
+!         spechum = qv_mp ! /(1.0_kind_phys+qv_mp)
+         qc      = qc_mp ! /(1.0_kind_phys+qv_mp)
+         qr      = qr_mp ! /(1.0_kind_phys+qv_mp)
+         qi      = qi_mp ! /(1.0_kind_phys+qv_mp)
+         qs      = qs_mp ! /(1.0_kind_phys+qv_mp)
+         qh      = qh_mp ! /(1.0_kind_phys+qv_mp)
+         IF ( nssl_hail_on ) THEN
+          qhl     = qhl_mp ! /(1.0_kind_phys+qv_mp)
+         ENDIF
+         
          ENDIF
 
 !        write(0,*) 'mp_nsslg: done q'
