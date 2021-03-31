@@ -1109,6 +1109,22 @@
 [ccpp-arg-table]
   name = GFS_suite_interstitial_3_run
   type = scheme
+[otsptflag]
+  standard_name = flag_convective_tracer_transport_interstitial
+  long_name = flag for interstitial tracer transport
+  units = flag
+  dimensions = (number_of_tracers_plus_one)
+  type = logical
+  intent = in
+  optional = F
+[ntracp1]
+  standard_name = number_of_tracers_plus_one
+  long_name = number of tracers plus one
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
+  optional = F
 [im]
   standard_name = horizontal_loop_extent
   long_name = horizontal loop extent
@@ -1765,6 +1781,14 @@
   type = integer
   intent = in
   optional = F
+[nssl_invertccn]
+  standard_name = nssl_invertccn
+  long_name = flag to invert CCN in NSSL micro
+  units = none
+  dimensions = ()
+  type = logical
+  intent = in
+  optional = F
 [dtf]
   standard_name = time_step_for_dynamics
   long_name = dynamics timestep
@@ -1872,6 +1896,22 @@
   type = real
   kind = kind_phys
   intent = inout
+  optional = F
+[otsptflag]
+  standard_name = flag_convective_tracer_transport_interstitial
+  long_name = flag for interstitial tracer transport
+  units = flag
+  dimensions = (number_of_tracers_plus_one)
+  type = logical
+  intent = in
+  optional = F
+[ntracp1]
+  standard_name = number_of_tracers_plus_one
+  long_name = number of tracers plus one
+  units = count
+  dimensions = ()
+  type = integer
+  intent = in
   optional = F
 [errmsg]
   standard_name = ccpp_error_message

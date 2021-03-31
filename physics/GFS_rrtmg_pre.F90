@@ -565,7 +565,7 @@
               IF ( Model%ncnd == 5 ) THEN
               ccnd(i,k,4) = tracer1(i,k,ntsw) + tracer1(i,k,ntgl) ! snow + graupel
               ELSEIF ( Model%ncnd == 6 ) THEN
-              ccnd(i,k,4) = tracer1(i,k,ntsw) + tracer1(i,k,ntgl) + tracer1(i,k,nthl) ! snow + graupel
+              ccnd(i,k,4) = tracer1(i,k,ntsw) + tracer1(i,k,ntgl) + tracer1(i,k,nthl) ! snow + graupel + hail
               ENDIF
             enddo
           enddo
@@ -691,6 +691,20 @@
 !                endif
               enddo
             enddo
+          endif
+        elseif (Model%imp_physics == Model%imp_physics_nssl2m .or. &
+                Model%imp_physics == Model%imp_physics_nssl2mccn ) then                          ! NSSL MP
+          cldcov = 0.0
+          if(Model%effr_in) then
+           do k=1,lm
+             k1 = k + kd
+             do i=1,im
+               effrl(i,k1) = Tbd%phy_f3d(i,k,1) ! re_cloud (i,k)
+               effri(i,k1) = Tbd%phy_f3d(i,k,2) ! re_ice (i,k)
+               effrr(i,k1) = 1000. ! rrain_def=1000.
+               effrs(i,k1) = Tbd%phy_f3d(i,k,3) ! re_snow(i,k)
+             enddo
+           enddo
           endif
         elseif (Model%imp_physics == Model%imp_physics_thompson) then                     !  Thompson MP
           !
@@ -874,10 +888,44 @@
                          Tbd%phy_f3d(:,:,2), Tbd%phy_f3d(:,:,3),    &
                          clouds,cldsa,mtopa,mbota, de_lgth)            !  --- outputs
 
+        elseif(  Model%imp_physics == imp_physics_nssl2m          &
+                .or. Model%imp_physics == imp_physics_nssl2mccn  ) then
 
-        elseif(Model%imp_physics == Model%imp_physics_thompson .or. &
-          Model%imp_physics == imp_physics_nssl2m              .or. &
-          Model%imp_physics == imp_physics_nssl2mccn) then                              ! Thompson MP
+          if(Model%do_mynnedmf .or.                                 & 
+                           Model%imfdeepcnv == Model%imfdeepcnv_gf ) then ! MYNN PBL or GF conv
+              !-- MYNN PBL or convective GF
+              !-- use cloud fractions with SGS clouds
+              do k=1,lmk
+                do i=1,im
+                  clouds(i,k,1)  = clouds1(i,k)
+                enddo
+              enddo
+
+                ! --- use clduni as with the GFDL microphysics.
+                ! --- make sure that effr_in=.true. in the input.nml!
+                call progclduni (plyr, plvl, tlyr, tvly, ccnd, ncndl,   & !  ---  inputs
+                         Grid%xlat, Grid%xlon, Sfcprop%slmsk, dz,delp,  &
+                         IM, LMK, LMP, clouds(:,1:LMK,1),               &
+                         effrl, effri, effrr, effrs, Model%effr_in ,    &
+                         clouds, cldsa, mtopa, mbota, de_lgth)            !  ---  outputs
+
+          else
+            call progcld5 (plyr,plvl,tlyr,qlyr,qstl,rhly,tracer1,   & !  --- inputs
+                         Grid%xlat,Grid%xlon,Sfcprop%slmsk,dz,delp, &
+                         ntrac-1, ntcw-1,ntiw-1,ntrw-1,             &
+                         ntsw-1,ntgl-1,                             &
+                         im, lmk, lmp, Model%uni_cld,               &
+                         Model%lmfshal,Model%lmfdeep2,              &
+                         cldcov(:,1:LMK),Tbd%phy_f3d(:,:,1),        &
+                         Tbd%phy_f3d(:,:,2), Tbd%phy_f3d(:,:,3),    &
+                         clouds,cldsa,mtopa,mbota, de_lgth)           !  --- outputs
+          endif ! MYNN PBL or GF
+
+
+        elseif(Model%imp_physics == Model%imp_physics_thompson      &
+!             .or.  Model%imp_physics == imp_physics_nssl2m          &
+!             .or. Model%imp_physics == imp_physics_nssl2mccn     &
+                        ) then                              ! Thompson MP
 
           if(Model%do_mynnedmf .or.                                 & 
                            Model%imfdeepcnv == Model%imfdeepcnv_gf ) then ! MYNN PBL or GF conv
