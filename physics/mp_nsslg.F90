@@ -60,14 +60,14 @@ module mp_nsslg
 
         if (is_initialized) return
 
-!         if (mpirank==mpiroot) then
+         if (mpirank==mpiroot) then
             write(0,*) ' ----------------------------------------------------------------------------------------------------------------'
             write(0,*) ' --- WARNING! --- the CCPP NSSL MP scheme is currently under development, use at your own risk --- WARNING ---'
             write(0,*) ' ----------------------------------------------------------------------------------------------------------------'
             write(6,*) ' ----------------------------------------------------------------------------------------------------------------'
             write(6,*) ' --- WARNING! --- the CCPP NSSL MP scheme is currently under development, use at your own risk --- WARNING ---'
             write(6,*) ' ----------------------------------------------------------------------------------------------------------------'
-!         end if
+         end if
         
 !        IF ( kind_phys /= kind_real ) THEN
 !          errflg = 1
@@ -113,7 +113,9 @@ module mp_nsslg
          nssl_params(13) = 0 ! 1= turn on cccna; 0 = turn off
          
          nssl_qccn = nssl_cccn/1.225
-         write(*,*) 'nssl_init: nssl_qccn = ',nssl_qccn
+         if (mpirank==mpiroot) then
+          write(*,*) 'nssl_init: nssl_qccn = ',nssl_qccn
+         endif
          
          IF ( nssl_hail_on ) THEN
            ihailv = 1
@@ -275,7 +277,7 @@ module mp_nsslg
         errflg = 0
         errmsg = ''
 
-!        write(0,*) 'In physics nsslg_run'
+        IF ( ndebug > 1 ) write(0,*) 'In physics nsslg_run'
 
 
          ! Check initialization state
@@ -412,7 +414,7 @@ module mp_nsslg
          kte = nlev
 
 
-!        write(0,*) 'call nssl_2mom_driver'
+       IF ( ndebug > 1 )  write(0,*) 'call nssl_2mom_driver'
 
         IF ( dtp > 1.5*dtpmax ) THEN
            ntmul = Nint( dtp/dtpmax )
@@ -494,8 +496,9 @@ module mp_nsslg
                      VHL=vhl_mp,                     &
 !                     cn=cccn,                        &
                      cn=cn_mp,                        &
-                     cna=cna_mp, f_cna=( ntccna > 0 ),           &
-                     PII=prslk,                         &
+!                     cna=cna_mp, f_cna=( ntccna > 0 ),           &
+                      cna=cna_mp, f_cna=.false. ,           &
+                    PII=prslk,                         &
                      P=prsl,                                &
                      W=w,                                &
                      DZ=dz,                              &
@@ -624,8 +627,12 @@ module mp_nsslg
            ENDIF
 !           cccna = cna_mp
           ENDIF
+          
+          IF ( ntccna > 1 .and. do_effective_radii ) THEN
+            cccna = re_ice_mp*1.0E6_kind_phys
+          ENDIF
 
-!        write(0,*) 'done nssl_2mom_driver'
+        IF ( ndebug > 1 ) write(0,*) 'done nssl_2mom_driver'
 
          if (errflg/=0) return
 
@@ -704,7 +711,7 @@ module mp_nsslg
             re_snow  = re_snow_mp*1.0E6_kind_phys
          end if
 
-!        write(0,*) 'mp_nsslg: end'
+        IF ( ndebug > 1 ) write(0,*) 'mp_nsslg: end'
 
     end subroutine mp_nsslg_run
 !>@}
