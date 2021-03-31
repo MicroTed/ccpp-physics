@@ -269,7 +269,7 @@ module mp_nsslg
          real, parameter    :: dtpmax = 300. ! 600. ! 120.
          real(kind_phys)    :: dtptmp
          integer, parameter :: ndebug = 0
-         logical, parameter :: convertdry = .false.
+         logical, parameter :: convertdry = .true.
          logical :: invertccn
          
 
@@ -485,7 +485,6 @@ module mp_nsslg
                      QS=qs_mp,                         &
                      QH=qh_mp,                         &
                      QHL=qhl_mp,                        &
-!                     CCW=qnc_mp,                       &
                      CCW=ccw,                    &
                      CRW=crw,                       &
                      CCI=cci,                       &
@@ -494,9 +493,8 @@ module mp_nsslg
                      CHL=chl_mp,                       &
                      VHW=vh,                     &
                      VHL=vhl_mp,                     &
-!                     cn=cccn,                        &
                      cn=cn_mp,                        &
-!                     cna=cna_mp, f_cna=( ntccna > 0 ),           &
+!                     cna=cna_mp, f_cna=( ntccna > 0 ),  & ! for future use
                       cna=cna_mp, f_cna=.false. ,           &
                     PII=prslk,                         &
                      P=prsl,                                &
@@ -508,23 +506,9 @@ module mp_nsslg
                      snownc=xsnow_mp, snowncv=xdelta_snow_mp,                         &
 !                     icenc=ice_mp, icencv=delta_ice_mp,                             &
                      GRPLNC=xgraupel_mp, GRPLNCV=xdelta_graupel_mp, sr=sr,      &
-!                     RAINNC   = RAINNC,                  &
-!                     RAINNCV  = RAINNCV,                 &
-!                     SNOWNC   = SNOWNC,                  &
-!                     SNOWNCV  = SNOWNCV,                 &
-!                     HAILNC   = HAILNC,                  &
-!                     HAILNCV  = HAILNCV,                 &
-!                     GRPLNC   = GRAUPELNC,               &
-!                     GRPLNCV  = GRAUPELNCV,              &
-!                     SR=SR,                              &
                      dbz      = refl_10cm,               &
 !                     nssl_progn=.false.,                       &
                      diagflag = diagflag,                &
-              !       cu_used=cu_used,                    &
-              !       qrcuten=qrcuten,                    &  ! hm
-              !       qscuten=qscuten,                    &  ! hm
-              !       qicuten=qicuten,                    &  ! hm
-              !       qccuten=qccuten,                    &  ! hm
                      re_cloud=re_cloud_mp,                  &
                      re_ice=re_ice_mp,                      &
                      re_snow=re_snow_mp,                    &
@@ -570,23 +554,9 @@ module mp_nsslg
                      snownc=xsnow_mp, snowncv=xdelta_snow_mp,                         &
 !                     icenc=ice_mp, icencv=delta_ice_mp,                             &
                      GRPLNC=xgraupel_mp, GRPLNCV=xdelta_graupel_mp, sr=sr,      &
-!                     RAINNC   = RAINNC,                  &
-!                     RAINNCV  = RAINNCV,                 &
-!                     SNOWNC   = SNOWNC,                  &
-!                     SNOWNCV  = SNOWNCV,                 &
-!                     HAILNC   = HAILNC,                  &
-!                     HAILNCV  = HAILNCV,                 &
-!                     GRPLNC   = GRAUPELNC,               &
-!                     GRPLNCV  = GRAUPELNCV,              &
-!                     SR=SR,                              &
                      dbz      = refl_10cm,               &
 !                     nssl_progn=.false.,                       &
                      diagflag = diagflag,                &
-              !       cu_used=cu_used,                    &
-              !       qrcuten=qrcuten,                    &  ! hm
-              !       qscuten=qscuten,                    &  ! hm
-              !       qicuten=qicuten,                    &  ! hm
-              !       qccuten=qccuten,                    &  ! hm
                      re_cloud=re_cloud_mp,                  &
                      re_ice=re_ice_mp,                      &
                      re_snow=re_snow_mp,                    &
@@ -614,12 +584,10 @@ module mp_nsslg
          IF ( imp_physics == imp_physics_nssl2mccn ) THEN
            IF ( invertccn ) THEN
               !cccn = Max(0.0, nssl_qccn - cn_mp )
-              ! (1:ncol,1:nlev)
               DO k = 1,nlev
                DO i = 1,ncol
 !                 cccn(i,k) = Max(0.0, nssl_qccn - cn_mp(i,k) )
                  cccn(i,k) = nssl_qccn - cn_mp(i,k) 
-                 !cccn(i,k) = cn_mp(i,k)
                ENDDO
               ENDDO
            ELSE
@@ -628,9 +596,10 @@ module mp_nsslg
 !           cccna = cna_mp
           ENDIF
           
-          IF ( ntccna > 1 .and. do_effective_radii ) THEN
-            cccna = re_ice_mp*1.0E6_kind_phys
-          ENDIF
+! test code
+!          IF ( ntccna > 1 .and. do_effective_radii ) THEN
+!            cccna = re_ice_mp*1.0E6_kind_phys
+!          ENDIF
 
         IF ( ndebug > 1 ) write(0,*) 'done nssl_2mom_driver'
 

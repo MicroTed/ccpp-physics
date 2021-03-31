@@ -1410,7 +1410,7 @@ END SUBROUTINE nssl_2mom_init_aero
         ENDIF
       ENDIF
       
-      write(0,*) 'wrf_init: lhab,lhl = ',lhab,lhl
+!      write(0,*) 'wrf_init: lhab,lhl = ',lhab,lhl
 
 !      IF ( ipelec > 0 ) idonic = .true.
 
