@@ -85,7 +85,7 @@
 !> \section gfs_mp_gen GFS MP Generic Post General Algorithm
 !> @{
       subroutine GFS_MP_generic_post_run(im, levs, kdt, nrcm, ncld, nncl, ntcw, ntrac, imp_physics, imp_physics_gfdl,     &
-        imp_physics_thompson, imp_physics_mg, imp_physics_fer_hires, imp_physics_nssl2m, imp_physics_nssl2mccn,           &
+        imp_physics_thompson, imp_physics_mg, imp_physics_fer_hires, imp_physics_nssl,           &
         cal_pre, lssav, ldiag3d, qdiag3d, cplflx, cplchm, con_g, dtf, frain, rainc, rain1,                                &
         rann, xlat, xlon, gt0, gq0, prsl, prsi, phii, tsfc, ice, snow, graupel, save_t, save_qv, rain0, ice0, snow0,      &
         graupel0, del, rain, domr_diag, domzr_diag, domip_diag, doms_diag, tprcp, srflag, sr, cnvprcp, totprcp, totice,   &
@@ -99,13 +99,14 @@
 
       integer, intent(in) :: im, levs, kdt, nrcm, ncld, nncl, ntcw, ntrac
       integer, intent(in) :: imp_physics, imp_physics_gfdl, imp_physics_thompson, imp_physics_mg, imp_physics_fer_hires, &
-                             imp_physics_nssl2m, imp_physics_nssl2mccn
+                             imp_physics_nssl
       logical, intent(in) :: cal_pre, lssav, ldiag3d, qdiag3d, cplflx, cplchm
 
       real(kind=kind_phys),                           intent(in)    :: dtf, frain, con_g
       real(kind=kind_phys), dimension(im),            intent(in)    :: rain1, xlat, xlon, tsfc
       real(kind=kind_phys), dimension(im),            intent(inout) :: ice, snow, graupel, rainc
-      real(kind=kind_phys), dimension(im),            intent(in)    :: rain0, ice0, snow0, graupel0 ! conditionally allocated in GFS_typedefs (imp_physics == GFDL or Thompson)
+      real(kind=kind_phys), dimension(im),            intent(in)    :: rain0, ice0, snow0, graupel0 ! conditionally allocated in GFS_typedefs 
+                                                                       ! (imp_physics == GFDL or Thompson or NSSL): ice0 = icemp, snow0 = snowmp etc.
       real(kind=kind_phys), dimension(im,nrcm),       intent(in)    :: rann
       real(kind=kind_phys), dimension(im,levs),       intent(in)    :: gt0, prsl, save_t, save_qv, del
       real(kind=kind_phys), dimension(im,levs+1),     intent(in)    :: prsi, phii
@@ -183,8 +184,7 @@
         ice     = ice0
         snow    = snow0
       ! Do it right from the beginning for Thompson
-      else if (imp_physics == imp_physics_thompson .or. imp_physics == imp_physics_nssl2m &
-        .or. imp_physics == imp_physics_nssl2mccn) then
+      else if (imp_physics == imp_physics_thompson .or. imp_physics == imp_physics_nssl ) then
         tprcp   = max (zero, rainc + frain * rain1) ! time-step convective and explicit precip
         graupel = frain*graupel0              ! time-step graupel
         ice     = frain*ice0                  ! time-step ice
@@ -223,7 +223,7 @@
 !
 !       HCHUANG: use new precipitation type to decide snow flag for LSM snow accumulation
 
-        if (imp_physics /= imp_physics_gfdl .and. imp_physics /= imp_physics_thompson) then
+        if (imp_physics /= imp_physics_gfdl .and. imp_physics /= imp_physics_thompson .and. imp_physics /= imp_physics_nssl) then
           do i=1,im
             tprcp(i)  = max(zero, rain(i) )
             if(doms(i) > zero .or. domip(i) > zero) then
@@ -265,7 +265,7 @@
 !! \f$0^oC\f$.
 
       if (imp_physics == imp_physics_gfdl .or. imp_physics == imp_physics_thompson .or. &
-          imp_physics == imp_physics_nssl2m .or. imp_physics == imp_physics_nssl2mccn) then
+          imp_physics == imp_physics_nssl ) then
 
 ! determine convective rain/snow by surface temperature
 ! determine large-scale rain/snow by rain/snow coming out directly from MP
