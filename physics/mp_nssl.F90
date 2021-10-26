@@ -190,16 +190,6 @@ module mp_nssl
 !           write(0,*) 'done nssl_2mom_init ccn'
          ENDIF
 
-         is_initialized = .true.
-         
-         ENDIF ! .not. is_initialized
-         
-#if 0
-!         IF ( is_initialized .and. ((.not. first_time_step) .or. restart ) ) THEN
-!           return
-!         ENDIF
-         
-         ! Following code only runs on first time step -- hopefully for all slabs
 
          !> - Density of air in kg m-3
          rho = prsl/(con_rd*tgrs)
@@ -228,27 +218,12 @@ module mp_nssl
           cccn_mp = nssl_qccn
           cccna_mp = 0
         ENDIF
-!        qr_mp = qr
-!        qs_mp = qs
-!            write(0,*) 'mp_nssl_init1: qi,qs,qh maxval: ',maxval(qi),maxval(qs),maxval(qh),maxval(rho)
-!        write(0,*) 'mp_nssl_init: call calcnfromq',restart,is_initialized,first_time_step
+
         call calcnfromq(nx=nx,ny=1,nz=nz,an=an,na=na,nor=0,norz=0,dn=rho, &
      &  qcw=qc,qci=qi,qsw=qs,qrw=qr,qhw=qh,qhl=qhl_mp, &
      &  ccw=ccw,cci=cci,csw=csw,crw=crw,chw=chw,chl=chl_mp, &
      &  cccn=cccn_mp,cccna=cccna_mp, vhw=vh,vhl=vhl_mp )
 
-!            qr = qr_mp
-!            qs = qs_mp
-            
-       !     write(0,*) 'mp_nssl_init2: qi,qs,qh maxval: ',maxval(qi),maxval(qs),maxval(qh),maxval(rho)
-       !     write(0,*) 'mp_nssl_init2: ni,ns,nh maxval: ',maxval(cci),maxval(csw),maxval(chw)
-!            DO k = 1,nz
-!            DO i = 1,nx
-!              IF ( qi(i,k) > 1.e-4 ) write(6,*) 'qi,ni = ',qi(i,k),cci(i,k)
-!              IF ( qs(i,k) > 1.e-3 ) write(6,*) 'qs,ns = ',qs(i,k),csw(i,k)
-!              IF ( qh(i,k) > 1.e-3 ) write(6,*) 'qh,nh = ',qh(i,k),chw(i,k)
-!            ENDDO
-!            ENDDO
 
         IF ( nssl_hail_on ) THEN
           qhl = qhl_mp
@@ -268,22 +243,22 @@ module mp_nssl
           ENDIF
         ENDIF
         
-!        qs = 0
-!        qi = 0
-!        qr = 0
         
 !           call calc_eff_radius    &
-!     &  (nx=im,ny=1,nz=lm,na=1,jyslab=1 & 
+!     &  (nx=nx,ny=1,nz=nz,na=1,jyslab=1 & 
 !     &  ,nor=0,norz=0 & 
 !     &  ,t1=re_cloud,t2=re_ice,t3=re_snow,t4=re_rain  & 
-!     &  ,qcw=qc_mp,qci=qi_mp,qsw=qs_mp,qrw=qr_mp &
-!     &  ,ccw=nc_mp,cci=ni_mp,csw=ns_mp,crw=nr_mp &
+!     &  ,qcw=qc,qci=qi,qsw=qs,qrw=qr &
+!     &  ,ccw=ccw,cci=cci,csw=csw,crw=crw &
 !     &  ,dn=rho )
 
 
          
          deallocate( an )
-#endif
+
+         is_initialized = .true.
+
+         ENDIF ! .not. is_initialized
          
          return
 

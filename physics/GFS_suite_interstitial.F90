@@ -516,6 +516,7 @@
                im, levs, nn, cscnv,                                     &
                satmedmf, trans_trac, do_shoc, ltaerosol, ntrac, ntcw,   &
                ntiw, ntclamt, ntrw, ntsw, ntrnc, ntsnc, ntgl, ntgnc,    &
+               ntccn, nthl, nthnc, ntgv, nthv,                          &
                xlon, xlat, gt0, gq0, imp_physics, imp_physics_mg,       &
                imp_physics_zhao_carr, imp_physics_zhao_carr_pdf,        &
                imp_physics_gfdl, imp_physics_thompson, dtidx, ntlnc,    &
@@ -533,8 +534,10 @@
       ! interface variables
       logical, intent(in)     :: otsptflag(1:ntracp1)!  on/off switch for tracer transport
       integer, intent(in)     :: ntracp1
-      integer,              intent(in   )                   :: im, levs, nn, ntrac, ntcw, ntiw, ntclamt, ntrw, ntsw,&
-        ntrnc, ntsnc, ntgl, ntgnc, imp_physics, imp_physics_mg, imp_physics_zhao_carr, imp_physics_zhao_carr_pdf,   &
+      integer,              intent(in   )                   ::  &
+        im, levs, nn, ntrac, ntcw, ntiw, ntclamt, ntrw, ntsw,      &
+        ntrnc, ntsnc, ntgl, ntgnc, ntccn, nthl, nthnc, ntgv, nthv, &
+        imp_physics, imp_physics_mg, imp_physics_zhao_carr, imp_physics_zhao_carr_pdf,   &
         imp_physics_gfdl, imp_physics_thompson, imp_physics_wsm6,imp_physics_fer_hires,  &
         imp_physics_nssl, me, index_of_process_conv_trans
       integer,              intent(in   ), dimension(:)     :: islmsk, kpbl, kinver
@@ -581,10 +584,12 @@
       if (cscnv .or. satmedmf .or. trans_trac .or. ras) then
         tracers = 2
         do n=2,ntrac
-!          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
-!               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
-!               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc) then
-            IF ( otsptflag(n) ) THEN
+          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
+               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
+               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc   .and. &
+               n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
+               n /= nthv .and. n /= ntccn) then 
+!            IF ( otsptflag(n) ) THEN
             tracers = tracers + 1
             do k=1,levs
               do i=1,im
@@ -713,8 +718,9 @@
 !! \htmlinclude GFS_suite_interstitial_4_run.html
 !!
     subroutine GFS_suite_interstitial_4_run (im, levs, ltaerosol, tracers_total, ntrac, ntcw, ntiw, ntclamt, &
-      ntrw, ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, ntccn, nn, imp_physics, imp_physics_gfdl, imp_physics_thompson,  &
-      imp_physics_nssl, nssl_invertccn, nssl_ccn_on,                                                  &
+      ntrw, ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, nn,  &
+      ntccn, nthl, nthnc, ntgv, nthv,                           &
+      imp_physics, imp_physics_gfdl, imp_physics_thompson, imp_physics_nssl, nssl_invertccn, nssl_ccn_on,            &
       imp_physics_zhao_carr, imp_physics_zhao_carr_pdf, convert_dry_rho, dtf, save_qc, save_qi, con_pi, dtidx, dtend,&
       index_of_process_conv_trans, gq0, clw, prsl, save_tcp, con_rd, con_eps, nwfa, spechum, ldiag3d,                &
       qdiag3d, save_lnc, save_inc, ntk, ntke, otsptflag, ntracp1, errmsg, errflg)
@@ -731,7 +737,8 @@
       logical, intent(in)     :: otsptflag(1:ntracp1)! on/off switch for tracer transport by updraft and
       integer, intent(in)     :: ntracp1
       integer,              intent(in   )                   :: im, levs, tracers_total, ntrac, ntcw, ntiw, ntclamt, ntrw, &
-        ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, ntccn, nn, imp_physics, imp_physics_gfdl, imp_physics_thompson,    &
+        ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, ntccn, nn,  nthl, nthnc, ntgv, nthv,     &
+        imp_physics, imp_physics_gfdl, imp_physics_thompson,    &
         imp_physics_zhao_carr, imp_physics_zhao_carr_pdf, imp_physics_nssl
 
       logical,                                  intent(in) :: ltaerosol, convert_dry_rho
@@ -813,15 +820,12 @@
       if (tracers_total > 0) then
         tracers = 2
         do n=2,ntrac
-!         if ( n /= ntcw .and. n /= ntiw .and. n /= ntclamt) then
-!          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
-!               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
-!               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc  &
-!               .and. &
-!             n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
-!             n /= nthv .and. n /= ntccn  &
-!                                                               ) then
-           IF ( otsptflag(n) ) THEN                                                    
+          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
+               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
+               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc   .and. &
+               n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
+               n /= nthv .and. n /= ntccn) then 
+!           IF ( otsptflag(n) ) THEN                                                    
               tracers = tracers + 1
             if(n/=ntk .and. n/=ntlnc .and. n/=ntinc .and. n /= ntcw .and. n /= ntiw) then
                idtend=dtidx(100+n,index_of_process_conv_trans)
