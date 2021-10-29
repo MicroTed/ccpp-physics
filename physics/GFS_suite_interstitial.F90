@@ -532,7 +532,7 @@
       implicit none
 
       ! interface variables
-      logical, intent(in)     :: otsptflag(1:ntracp1)!  on/off switch for tracer transport
+      logical, intent(in)     :: otsptflag(:)!  on/off switch for tracer transport
       integer, intent(in)     :: ntracp1
       integer,              intent(in   )                   ::  &
         im, levs, nn, ntrac, ntcw, ntiw, ntclamt, ntrw, ntsw,      &
@@ -584,12 +584,12 @@
       if (cscnv .or. satmedmf .or. trans_trac .or. ras) then
         tracers = 2
         do n=2,ntrac
-          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
-               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
-               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc   .and. &
-               n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
-               n /= nthv .and. n /= ntccn) then 
-!            IF ( otsptflag(n) ) THEN
+!          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
+!               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
+!               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc   .and. &
+!               n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
+!               n /= nthv .and. n /= ntccn) then 
+            IF ( otsptflag(n) ) THEN
             tracers = tracers + 1
             do k=1,levs
               do i=1,im
@@ -734,7 +734,7 @@
 
       ! interface variables
 
-      logical, intent(in)     :: otsptflag(1:ntracp1)! on/off switch for tracer transport by updraft and
+      logical, intent(in)     :: otsptflag(:)! on/off switch for tracer transport by updraft and
       integer, intent(in)     :: ntracp1
       integer,              intent(in   )                   :: im, levs, tracers_total, ntrac, ntcw, ntiw, ntclamt, ntrw, &
         ntsw, ntrnc, ntsnc, ntgl, ntgnc, ntlnc, ntinc, ntccn, nn,  nthl, nthnc, ntgv, nthv,     &
@@ -820,12 +820,12 @@
       if (tracers_total > 0) then
         tracers = 2
         do n=2,ntrac
-          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
-               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
-               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc   .and. &
-               n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
-               n /= nthv .and. n /= ntccn) then 
-!           IF ( otsptflag(n) ) THEN                                                    
+!          if ( n /= ntcw  .and. n /= ntiw  .and. n /= ntclamt .and. &
+!               n /= ntrw  .and. n /= ntsw  .and. n /= ntrnc   .and. &
+!               n /= ntsnc .and. n /= ntgl  .and. n /= ntgnc   .and. &
+!               n /= nthl  .and. n /= nthnc .and. n /= ntgv    .and. &
+!               n /= nthv .and. n /= ntccn) then 
+           IF ( otsptflag(n) ) THEN                                                    
               tracers = tracers + 1
             if(n/=ntk .and. n/=ntlnc .and. n/=ntinc .and. n /= ntcw .and. n /= ntiw) then
                idtend=dtidx(100+n,index_of_process_conv_trans)
