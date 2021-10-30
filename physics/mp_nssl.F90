@@ -422,7 +422,7 @@ module mp_nssl
 
 !            write(0,*) 'nssl_run: nlev,ncol,rank = ',nlev,ncol,mpirank
 
-        IF ( ndebug > 1 ) write(0,*) 'In physics nssl_run'
+        IF ( ndebug >= 1 ) write(0,*) 'In physics nssl_run'
 
 
          ! Check initialization state
@@ -535,7 +535,7 @@ module mp_nssl
          xdelta_ice_mp     = 0
          xdelta_snow_mp    = 0
 
-         IF ( ndebug >= 1 ) THEN
+         IF ( ndebug > 1 ) THEN
          write(*,*) 'Max q before micro'
          write(*,*) 'qc = ',1000.*maxval(qc_mp)
          write(*,*) 'qr = ',1000.*maxval(qr_mp)
@@ -601,7 +601,7 @@ module mp_nssl
          kte = nlev
 
 
-       IF ( ndebug > 1 )  write(0,*) 'call nssl_2mom_driver'
+       IF ( ndebug >= 1 )  write(0,*) 'call nssl_2mom_driver'
 
         IF ( dtp > 1.5*dtpmax ) THEN
            ntmul = Nint( dtp/dtpmax )
@@ -829,7 +829,7 @@ module mp_nssl
 
          if (errflg/=0) return
 
-         IF ( ndebug >= 1 ) THEN
+         IF ( ndebug > 1 ) THEN
          write(*,*) 'Max q after micro'
          write(*,*) 'qc = ',1000.*maxval(qc_mp)
          write(*,*) 'qr = ',1000.*maxval(qr_mp)
@@ -921,7 +921,7 @@ module mp_nssl
             re_rain  = re_rain_mp*1.0E6_kind_phys
          end if
 
-        IF ( ndebug > 1 ) write(0,*) 'mp_nssl: end'
+        IF ( ndebug >= 1 ) write(0,*) 'mp_nssl: end'
 
     end subroutine mp_nssl_run
 !>@}
