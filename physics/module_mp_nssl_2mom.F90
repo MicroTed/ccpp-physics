@@ -8,7 +8,7 @@
 
 
 !---------------------------------------------------------------------
-! code snapshot: "Feb 24 2022" at "14:27:57"
+! code snapshot: "Mar  5 2022" at "18:30:29"
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
 ! IMPORTANT: Best results are attained using the 5th-order WENO (Weighted Essentially Non-Oscillatory) advection option (4) for scalars:
@@ -921,6 +921,7 @@ MODULE module_mp_nssl_2mom
       real :: tfrcbw
       real :: tfrcbi
       real :: rovcp
+      real :: rdorv = 0.622
 
       real, parameter :: poo = 1.0e+05
       real, parameter :: advisc0 = 1.832e-05     ! reference dynamic viscosity (SMT; see Beard & Pruppacher 71)
@@ -1140,12 +1141,12 @@ MODULE module_mp_nssl_2mom
          real, intent(in) :: con_g, con_rd, con_cp, con_rv, &
                              con_t0c, con_cliq, con_csol, con_eps
        
-       cp608 = con_eps ! 0.608          ! constant used in conversion of T to Tv
        gr = con_g
        tfr = con_t0c
        cp = con_cp
        rd = con_rd
        rw = con_rv
+       rdorv = con_eps
        cpl = con_cliq ! 4190.0
        cpigb = con_csol ! 2106.0
        cpi = 1./cp
@@ -1173,6 +1174,7 @@ MODULE module_mp_nssl_2mom
      & nssl_icefallfac, &
      & nssl_snowfallfac, &
      & errmsg, errflg, &
+     & infile, &
      & myrank, mpiroot &
      )
 
@@ -1188,6 +1190,8 @@ MODULE module_mp_nssl_2mom
    integer, intent(in), optional ::  &
      & nssl_icdx, &
      & nssl_icdxhl, myrank, mpiroot
+
+  integer, intent(in),optional      :: infile
 
    ! CCPP error handling
    character(len=*), intent(  out) :: errmsg
@@ -2038,7 +2042,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
                               cn, vhw, vhl, cna, cni, f_cn, f_cna, f_cina,               &
                               zrw, zhw, zhl,                                            &
                               qsw, qhw, qhlw,                                           &
-                              tt, th, pii, p, w, dn, dz, dtp, itimestep,                &
+                              tt, th, pii, p, w, dn, dz, dtp, itimestep, ntmul, ntcnt,  &
                               RAINNC,RAINNCV,                                           &
                               dx, dy,                                                   &
                               axtra,                                                    &
@@ -2145,6 +2149,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
       real, optional, intent(in) :: dx,dy
       real, intent(in)::    dtp
       integer, intent(in):: itimestep !, ccntype
+      integer, intent(in), optional :: ntmul, ntcnt
       logical, optional, intent(in) :: diagflag, f_cna, f_cn, f_cina
       integer, optional, intent(in) :: ipelectmp, ke_diag
 
@@ -2229,6 +2234,8 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
       real :: fach(kts:kte)
       
       logical, parameter :: debugdriver = .false.
+      
+      integer :: loopcnt,loopmax
 
 #ifdef MPI
 
@@ -2256,7 +2263,12 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
      IF ( PRESENT ( nssl_progn ) ) flag_qndrop = nssl_progn
 
      
-     
+     loopmax = 1
+     loopcnt = 1
+     IF ( present( ntmul ) .and. present( ntcnt ) ) THEN
+       loopmax = ntmul
+       loopcnt = ntcnt
+     ENDIF
      
      ! ---
 
@@ -2457,6 +2469,21 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
           
 
 
+        ENDDO
+       ENDDO
+       
+       
+       DO ix = its,ite
+         RAINNCV(ix,jy) = 0.0
+         IF ( present( GRPLNCV ) ) GRPLNCV(ix,jy) = 0.0
+         IF ( present( HAILNCV ) ) HAILNCV(ix,jy) = 0.0
+         IF ( present( SNOWNCV ) ) SNOWNCV(ix,jy) = 0.0
+       ENDDO
+
+      DO loopcnt = 1,loopmax
+       
+       DO kz = kts,kte
+        DO ix = its,ite
 
           
           IF ( present( tt ) ) THEN
@@ -2478,9 +2505,10 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
           dbz2d(ix,1,kz) = 0.0
           vzf2d(ix,1,kz) = 0.0
 
-          dn1(ix,1,kz) = dn(ix,kz,jy)
           pn(ix,1,kz) = p(ix,kz,jy)
           wn(ix,1,kz) = w(ix,kz,jy)
+! calculate dn1 in case we are substepping: rho = con_eps*prsl/(con_rd*tgrs*(qv_mp+con_eps))
+          dn1(ix,1,kz) = rdorv*pn(ix,1,kz)/(rd*t0(ix,1,kz)*(an(ix,1,kz,lv) + rdorv))
 !          wmax = Max(wmax,wn(ix,1,kz))
           dz2d(ix,1,kz) = dz(ix,kz,jy)
           dz2dinv(ix,1,kz) = 1./dz(ix,kz,jy)
@@ -2558,7 +2586,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
         ! naer needs units of cm**-3, so mult by 1.e-6
         
         !  dp1 = 1.e3*0.0000594*(273.16 - t0(ix,jy,kz))**3.33 * (1.e-6*cin*dn(ix,jy,kz))**(0.0264*(273.16 - t0(ix,jy,kz)) + 0.0033)
-          dp1 = 1.e3*dn(ix,jy,kz)/rho00*0.0000594*(273.16 - t0(ix,jy,kz))**3.33 * (1.e-6*naer)**(0.0264*(273.16 - t0(ix,jy,kz)) + 0.0033)
+          dp1 = 1.e3*dn1(ix,1,kz)/rho00*0.0000594*(273.16 - t0(ix,jy,kz))**3.33 * (1.e-6*naer)**(0.0264*(273.16 - t0(ix,jy,kz)) + 0.0033)
           t7(ix,jy,kz) = Min(dp1, 1.0d30)
       
         ELSE
@@ -2593,21 +2621,23 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
        IF ( denscale(il) == 1 ) THEN
          DO kz = kts,kte
           DO ix = its,ite
-           an(ix,1,kz,il) = an(ix,1,kz,il)*dn(ix,kz,jy)
+           an(ix,1,kz,il) = an(ix,1,kz,il)*dn1(ix,1,kz) ! dn(ix,kz,jy)
           ENDDO
          ENDDO
        ENDIF
      ENDDO ! il
+
         
 ! sedimentation
       xfall(:,:,:) = 0.0
        
-      IF ( .true. ) THEN
+
+!      IF ( .true. ) THEN
 
 
 ! #ifndef CM1
 ! for real cases when hydrometeor mixing ratios have been initialized without concentrations
-       IF ( itimestep == 1 .and. ipconc > 0 ) THEN
+       IF ( itimestep == 1 .and. ipconc > 0 .and. loopcnt == 1 ) THEN
          call calcnfromq(nx,ny,nz,an,na,nor,nor,dn1)
        ENDIF
 !       IF ( itimestep == 3 .and. ipconc > 0 ) THEN
@@ -2617,9 +2647,9 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
       IF ( present(cu_used) .and.         &
            ( present( qrcuten ) .or. present( qscuten ) .or.  &
-             present( qicuten ) .or. present( qccuten ) ) ) THEN
+             present( qicuten ) .or. present( qccuten ) ) ) THEN !{
 
-       IF ( cu_used == 1 ) THEN
+       IF ( cu_used == 1 ) THEN !{
        DO kz = kts,kte
         DO ix = its,ite
 
@@ -2634,9 +2664,11 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
          call calcnfromcuten(nx,ny,nz,ancuten,an,na,nor,nor,dn1)
 
        
-       ENDIF
+       ENDIF !}
        
-      ENDIF
+      ENDIF !}
+      
+      
 
 
       call sediment1d(dtp,nx,ny,nz,an,na,nor,nor,xfall,dn1,dz2d,dz2dinv, &
@@ -2650,10 +2682,12 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
        DO ix = its,ite
          IF ( lhl > 1 ) THEN
-         RAINNCV(ix,jy) = dtp*dn1(ix,1,1)*(xfall(ix,1,lr) + xfall(ix,1,ls)*1000./xdn0(lr) + &
+         RAINNCV(ix,jy) = RAINNCV(ix,jy) + &
+                          dtp*dn1(ix,1,1)*(xfall(ix,1,lr) + xfall(ix,1,ls)*1000./xdn0(lr) + &
               &            xfall(ix,1,lh)*1000./xdn0(lr) + xfall(ix,1,lhl)*1000./xdn0(lr) )
          ELSE
-         RAINNCV(ix,jy) = dtp*dn1(ix,1,1)*(xfall(ix,1,lr) + xfall(ix,1,ls)*1000./xdn0(lr) + &
+         RAINNCV(ix,jy) = RAINNCV(ix,jy) + &
+                           dtp*dn1(ix,1,1)*(xfall(ix,1,lr) + xfall(ix,1,ls)*1000./xdn0(lr) + &
               &            xfall(ix,1,lh)*1000./xdn0(lr) )
          ENDIF
          IF ( present ( rainncw2 ) ) THEN ! rain only
@@ -2668,17 +2702,19 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
      &            xfall(ix,1,lh)*1000./xdn0(lr) )
            ENDIF
          ENDIF
-         IF ( present( SNOWNCV ) ) SNOWNCV(ix,jy) = dtp*dn1(ix,1,1)*xfall(ix,1,ls)*1000./xdn0(lr)
+         IF ( present( SNOWNCV ) ) SNOWNCV(ix,jy) = SNOWNCV(ix,jy) + dtp*dn1(ix,1,1)*xfall(ix,1,ls)*1000./xdn0(lr)
          IF ( present( GRPLNCV ) ) THEN 
            IF ( lhl > 1 .and. .not. present( HAILNC) ) THEN ! if no separate hail accum, then add to graupel
-             GRPLNCV(ix,jy) = dtp*dn1(ix,1,1)*(xfall(ix,1,lh) + xfall(ix,1,lhl)) *1000./xdn0(lr)
+             GRPLNCV(ix,jy) = GRPLNCV(ix,jy) + dtp*dn1(ix,1,1)*(xfall(ix,1,lh) + xfall(ix,1,lhl)) *1000./xdn0(lr)
            ELSE
-             GRPLNCV(ix,jy) = dtp*dn1(ix,1,1)*xfall(ix,1,lh)*1000./xdn0(lr)
+             GRPLNCV(ix,jy) = GRPLNCV(ix,jy) + dtp*dn1(ix,1,1)*xfall(ix,1,lh)*1000./xdn0(lr)
            ENDIF
          ENDIF
-         RAINNC(ix,jy)  = RAINNC(ix,jy) + RAINNCV(ix,jy)
+         IF ( loopcnt == loopmax ) RAINNC(ix,jy)  = RAINNC(ix,jy) + RAINNCV(ix,jy)
 
-         IF ( present (SNOWNC) .and. present (SNOWNCV) ) SNOWNC(ix,jy)  = SNOWNC(ix,jy) + SNOWNCV(ix,jy)
+         IF ( present (SNOWNC) .and. present (SNOWNCV) .and. loopcnt == loopmax ) THEN
+           SNOWNC(ix,jy)  = SNOWNC(ix,jy) + SNOWNCV(ix,jy)
+         ENDIF
          IF ( lhl > 1 ) THEN
 !#ifdef CM1
 !           IF ( .true. ) THEN
@@ -2686,13 +2722,15 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
            IF ( present( HAILNC ) ) THEN
 !#endif
              HAILNCV(ix,jy) = dtp*dn1(ix,1,1)*xfall(ix,1,lhl)*1000./xdn0(lr)
-             HAILNC(ix,jy)  = HAILNC(ix,jy) + HAILNCV(ix,jy)
+             IF ( loopcnt == loopmax ) HAILNC(ix,jy)  = HAILNC(ix,jy) + HAILNCV(ix,jy)
 !           ELSEIF ( present( GRPLNCV ) ) THEN ! if no separate hail accum, then add to graupel
 !             GRPLNCV(ix,jy) = GRPLNCV(ix,jy) + dtp*dn1(ix,1,1)*xfall(ix,1,lhl)*1000./xdn0(lr)
            ENDIF
          ENDIF
-         IF ( present( GRPLNCV ) ) GRPLNC(ix,jy)  = GRPLNC(ix,jy) + GRPLNCV(ix,jy)
-        IF ( present( SR ) .and. present (SNOWNCV) .and. present(GRPLNCV) ) THEN
+         IF ( present( GRPLNCV ) .and. loopcnt == loopmax ) THEN
+           GRPLNC(ix,jy)  = GRPLNC(ix,jy) + GRPLNCV(ix,jy)
+         ENDIF
+        IF ( present( SR ) .and. present (SNOWNCV) .and. present(GRPLNCV) .and. loopcnt == loopmax ) THEN
          IF ( present( HAILNC ) ) THEN
            SR(ix,jy)      = (SNOWNCV(ix,jy)+HAILNCV(ix,jy)+GRPLNCV(ix,jy))/(RAINNCV(ix,jy)+1.e-12)
          ELSE
@@ -2701,7 +2739,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
         ENDIF
        ENDDO
        
-      ENDIF ! .false.
+!      ENDIF ! .false.
  
       IF ( isedonly /= 1 ) THEN
    ! call nssl_2mom_gs: main gather-scatter routine to calculate microphysics
@@ -2732,6 +2770,13 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
 
 
+! recalculate dn1 after temperature changes: rho = con_eps*prsl/(con_rd*tgrs*(qv_mp+con_eps))
+      DO kz = kts,kte
+        DO ix = its,ite
+          dn1(ix,1,kz) = rdorv*pn(ix,1,kz)/(rd*t0(ix,1,kz)*(an(ix,1,kz,lv) + rdorv))
+        ENDDO
+      ENDDO
+
 
    ENDIF ! isedonly /= 1
    
@@ -2747,10 +2792,20 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
      &  ,axtra2d, makediag  &
      &  ,ssat,t00,t77,flag_qndrop)
 
+! recalculate dn1 after temperature changes 
+      DO kz = kts,kte
+        DO ix = its,ite
+          dn1(ix,1,kz) = rdorv*pn(ix,1,kz)/(rd*t0(ix,1,kz)*(an(ix,1,kz,lv) + rdorv))
+        ENDDO
+      ENDDO
+
 
    ENDIF
 
 
+
+
+     ENDDO ! loopmax
 
      IF ( present( pcc2 ) .and. makediag ) THEN
          DO kz = kts,kte
@@ -2855,7 +2910,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
       IF ( denscale(il) == 1 ) THEN
        DO kz = kts,kte
         DO ix = its,ite
-         an(ix,1,kz,il) = an(ix,1,kz,il)/dn(ix,kz,jy)
+         an(ix,1,kz,il) = an(ix,1,kz,il)/dn1(ix,1,kz) ! dn(ix,kz,jy)
         ENDDO
        ENDDO
       ENDIF

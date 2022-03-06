@@ -562,7 +562,7 @@ module mp_nssl
         ENDIF
        
        IF ( .true. ) THEN
-        DO n = 1,ntmul
+        DO n = 1,1 ! ntmul
         
         itimestep = itimestep + 1
 
@@ -573,7 +573,7 @@ module mp_nssl
 
          CALL nssl_2mom_driver(                          &
                     ITIMESTEP=itimestep,                &
-                  !   TH=th,                              &
+                    ntmul=ntmul, ntcnt = n,             &
                      tt=tgrs,                          &
                      QV=qv_mp,                         &
                      QC=qc_mp,                         &
@@ -625,7 +625,7 @@ module mp_nssl
 
          CALL nssl_2mom_driver(                          &
                     ITIMESTEP=itimestep,                &
-                  !   TH=th,                              &
+                    ntmul=ntmul, ntcnt = n,             &
                      tt=tgrs,                          &
                      QV=qv_mp,                         &
                      QC=qc_mp,                         &
