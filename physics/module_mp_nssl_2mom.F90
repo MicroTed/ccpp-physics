@@ -8,7 +8,7 @@
 
 
 !---------------------------------------------------------------------
-! code snapshot: "Mar  5 2022" at "18:30:29"
+! code snapshot: "Mar  6 2022" at "20:21:31"
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
 ! IMPORTANT: Best results are attained using the 5th-order WENO (Weighted Essentially Non-Oscillatory) advection option (4) for scalars:
@@ -921,7 +921,7 @@ MODULE module_mp_nssl_2mom
       real :: tfrcbw
       real :: tfrcbi
       real :: rovcp
-      real :: rdorv = 0.622
+      real, public :: rdorv = 0.622
 
       real, parameter :: poo = 1.0e+05
       real, parameter :: advisc0 = 1.832e-05     ! reference dynamic viscosity (SMT; see Beard & Pruppacher 71)
@@ -2042,7 +2042,8 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
                               cn, vhw, vhl, cna, cni, f_cn, f_cna, f_cina,               &
                               zrw, zhw, zhl,                                            &
                               qsw, qhw, qhlw,                                           &
-                              tt, th, pii, p, w, dn, dz, dtp, itimestep, ntmul, ntcnt,  &
+                              tt, th, pii, p, w, dn, dz, dtp, itimestep,                &
+                              ntmul, ntcnt, lastloop,                                   &
                               RAINNC,RAINNCV,                                           &
                               dx, dy,                                                   &
                               axtra,                                                    &
@@ -2150,6 +2151,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
       real, intent(in)::    dtp
       integer, intent(in):: itimestep !, ccntype
       integer, intent(in), optional :: ntmul, ntcnt
+      logical, optional, intent(in) :: lastloop
       logical, optional, intent(in) :: diagflag, f_cna, f_cn, f_cina
       integer, optional, intent(in) :: ipelectmp, ke_diag
 
@@ -2235,7 +2237,8 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
       
       logical, parameter :: debugdriver = .false.
       
-      integer :: loopcnt,loopmax
+      integer :: loopcnt, loopmax, outerloopcnt
+      logical :: lastlooptmp
 
 #ifdef MPI
 
@@ -2264,12 +2267,14 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
      
      loopmax = 1
-     loopcnt = 1
-     IF ( present( ntmul ) .and. present( ntcnt ) ) THEN
+     outerloopcnt = 1
+     lastlooptmp = .true.
+     IF ( present( ntmul ) .and. present( ntcnt ) .and. present( lastloop ) ) THEN
        loopmax = ntmul
-       loopcnt = ntcnt
+       outerloopcnt = ntcnt
+       lastlooptmp = lastloop
      ENDIF
-     
+          
      ! ---
 
      IF ( present( f_cna ) ) THEN
@@ -2472,6 +2477,21 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
         ENDDO
        ENDDO
        
+       DO kz = kts,kte
+        DO ix = its,ite
+
+          
+          IF ( present( tt ) ) THEN
+            t0(ix,1,kz) = tt(ix,kz,jy) ! temperature (Kelvin)
+          ELSE
+            t0(ix,1,kz) = th(ix,kz,jy)*pii(ix,kz,jy) ! temperature (Kelvin)
+          ENDIF
+          t00(ix,1,kz) = 380.0/p(ix,kz,jy)
+          t77(ix,1,kz) = pii(ix,kz,jy)
+          dbz2d(ix,1,kz) = 0.0
+          vzf2d(ix,1,kz) = 0.0
+        ENDDO
+       ENDDO
        
        DO ix = its,ite
          RAINNCV(ix,jy) = 0.0
@@ -2486,11 +2506,6 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
         DO ix = its,ite
 
           
-          IF ( present( tt ) ) THEN
-            t0(ix,1,kz) = tt(ix,kz,jy) ! temperature (Kelvin)
-          ELSE
-            t0(ix,1,kz) = th(ix,kz,jy)*pii(ix,kz,jy) ! temperature (Kelvin)
-          ENDIF
           t1(ix,1,kz) = 0.0
           t2(ix,1,kz) = 0.0
           t3(ix,1,kz) = 0.0
@@ -2500,10 +2515,6 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
           t7(ix,1,kz) = 0.0
           t8(ix,1,kz) = 0.0
           t9(ix,1,kz) = 0.0
-          t00(ix,1,kz) = 380.0/p(ix,kz,jy)
-          t77(ix,1,kz) = pii(ix,kz,jy)
-          dbz2d(ix,1,kz) = 0.0
-          vzf2d(ix,1,kz) = 0.0
 
           pn(ix,1,kz) = p(ix,kz,jy)
           wn(ix,1,kz) = w(ix,kz,jy)
@@ -2617,6 +2628,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
    ! transform from number mixing ratios to number conc.
      
+    IF ( loopcnt == 1 ) THEN
      DO il = lnb,na
        IF ( denscale(il) == 1 ) THEN
          DO kz = kts,kte
@@ -2626,6 +2638,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
          ENDDO
        ENDIF
      ENDDO ! il
+    ENDIF
 
         
 ! sedimentation
@@ -2805,7 +2818,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
 
 
-     ENDDO ! loopmax
+     ENDDO ! loopcnt=1,loopmax
 
      IF ( present( pcc2 ) .and. makediag ) THEN
          DO kz = kts,kte
@@ -2820,7 +2833,7 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
 
 ! compute diagnostic S-band reflectivity if needed
-     IF ( present( dbz ) .and. makediag ) THEN
+     IF ( present( dbz ) .and. makediag .and. lastlooptmp ) THEN
    ! calc dbz
       
       IF ( .true. ) THEN
@@ -2858,7 +2871,8 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
 ! Following Greg Thompson, calculation for effective radii. Used by RRTMG LW/SW schemes if enabled in module_physics_init.F
       IF ( present( has_reqc ).and. present( has_reqi ) .and. present( has_reqs ) .and.  &
-           present( re_cloud ).and. present( re_ice ) .and. present( re_snow ) ) THEN
+           present( re_cloud ).and. present( re_ice ) .and. present( re_snow )    .and.  &
+           lastlooptmp) THEN
        IF ( has_reqc.ne.0 .or. has_reqi.ne.0 .or. has_reqs.ne.0) THEN
          DO kz = kts,kte
           DO ix = its,ite
@@ -2975,6 +2989,9 @@ SUBROUTINE nssl_2mom_driver(qv, qc, qr, qi, qs, qh, qhl, ccw, crw, cci, csw, chw
 
 #if ( WRF_CHEM == 1 )
          IF ( has_wetscav ) THEN
+           IF ( loopmax > 1 ) THEN
+             ! wrferror not supported
+           ENDIF
            IF ( PRESENT( rainprod ) ) rainprod(ix,kz,jy) = rainprod2d(ix,kz)
            IF ( PRESENT( evapprod ) ) evapprod(ix,kz,jy) = evapprod2d(ix,kz)
          ENDIF

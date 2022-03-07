@@ -163,7 +163,7 @@ module mp_nssl
                              nssl_hail_on, nssl_invertccn, ntccn, ntccna,    &
                              errflg, errmsg)
 
-        use module_mp_nssl_2mom, only: calcnfromq, na
+        use module_mp_nssl_2mom, only: calcnfromq, na, rdorv
 
         implicit none
         integer, intent(in) :: ncol, nlev
@@ -288,12 +288,14 @@ module mp_nssl
                             ims,ime, jms,jme, kms,kme, &
                             its,ite, jts,jte, kts,kte, i,j,k
          integer :: itimestep ! timestep counter
-         integer :: ntmul, n
+         integer :: ntmul,ntmultmp, n, nloop
+         logical :: lastloop
          real, parameter    :: dtpmax = 60. ! allow up to dt=75 (1.25*60)
          real(kind_phys)    :: dtptmp
          integer, parameter :: ndebug = 0
          logical :: invertccn
          real :: cwmas
+         logical, parameter :: do_outer_loop = .false.
          
          real(kind_phys), allocatable :: an(:,:,:,:) ! temporary scalar array
 
@@ -389,7 +391,7 @@ module mp_nssl
 
          
          !> - Density of air in kg m-3
-         rho = prsl/(con_rd*tgrs)
+         rho = rdorv*prsl/(con_rd*tgrs*(qv_mp + rdorv))
 
          !> - Convert omega in Pa s-1 to vertical velocity w in m s-1
          w = -omega/(rho*con_g)
@@ -492,6 +494,14 @@ module mp_nssl
            ntmul = 1
         ENDIF
         
+        IF ( do_outer_loop ) THEN
+           nloop = ntmul
+           ntmultmp = 1
+        ELSE
+           nloop = 1
+           ntmultmp = ntmul
+        ENDIF
+        
         IF ( first_time_step ) THEN
           itimestep = 0 ! gets incremented to 1 in call loop
           IF ( nssl_ccn_on ) THEN
@@ -562,18 +572,24 @@ module mp_nssl
         ENDIF
        
        IF ( .true. ) THEN
-        DO n = 1,1 ! ntmul
+        DO n = 1,nloop
         
         itimestep = itimestep + 1
-
+        lastloop = ( n == nloop )
+        
+        IF ( n > 1 ) THEN
+!          rho = prsl/(con_rd*tgrs)
+          rho = rdorv*prsl/(con_rd*tgrs*(qv_mp + rdorv))
+        ENDIF
 
 
          IF ( nssl_ccn_on )  THEN
 
 
-         CALL nssl_2mom_driver(                          &
-                    ITIMESTEP=itimestep,                &
-                    ntmul=ntmul, ntcnt = n,             &
+         CALL nssl_2mom_driver(                        &
+                     ITIMESTEP=itimestep,              &
+                     ntmul=ntmultmp, ntcnt = n,           &
+                     lastloop=lastloop,                &
                      tt=tgrs,                          &
                      QV=qv_mp,                         &
                      QC=qc_mp,                         &
@@ -581,40 +597,40 @@ module mp_nssl
                      QI=qi_mp,                         &
                      QS=qs_mp,                         &
                      QH=qh_mp,                         &
-                     QHL=qhl_mp,                        &
-                     CCW=nc_mp,                    &
-                     CRW=nr_mp,                       &
-                     CCI=ni_mp,                       &
-                     CSW=ns_mp,                       &
-                     CHW=nh_mp,                       &
+                     QHL=qhl_mp,                       &
+                     CCW=nc_mp,                        &
+                     CRW=nr_mp,                        &
+                     CCI=ni_mp,                        &
+                     CSW=ns_mp,                        &
+                     CHW=nh_mp,                        &
                      CHL=nhl_mp,                       &
-                     VHW=vh_mp,                     &
-                     VHL=vhl_mp,                     &
-                     cn=cn_mp,                        &
+                     VHW=vh_mp,                        &
+                     VHL=vhl_mp,                       &
+                     cn=cn_mp,                         &
 !                     cna=cna_mp, f_cna=( ntccna > 0 ),  & ! for future use
-                      cna=cna_mp, f_cna=.false. ,           &
+                      cna=cna_mp, f_cna=.false. ,      &
                     PII=prslk,                         &
-                     P=prsl,                                &
-                     W=w,                                &
-                     DZ=dz,                              &
-                     DTP=dtptmp,                         &
-                     DN=rho,                             &
-                     rainnc=xrain_mp, rainncv=xdelta_rain_mp,                         &
-                     snownc=xsnow_mp, snowncv=xdelta_snow_mp,                         &
-!                     icenc=ice_mp, icencv=delta_ice_mp,                             &
-                     GRPLNC=xgraupel_mp, GRPLNCV=xdelta_graupel_mp, sr=sr,      &
-                     dbz      = refl_10cm,               &
-!                     nssl_progn=.false.,                       &
-                     diagflag = diagflag,                &
-                     errmsg=errmsg,errflg=errflg,        &
-                     re_cloud=re_cloud_mp,                  &
-                     re_ice=re_ice_mp,                      &
-                     re_snow=re_snow_mp,                    &
-                     re_rain=re_rain_mp,                    &
-                     has_reqc=has_reqc,                  & ! ala G. Thompson
-                     has_reqi=has_reqi,                  & ! ala G. Thompson
-                     has_reqs=has_reqs,                  & ! ala G. Thompson
-                     has_reqr=has_reqr,                  &
+                     P=prsl,                           &
+                     W=w,                              &
+                     DZ=dz,                            &
+                     DTP=dtptmp,                       &
+                     DN=rho,                           &
+                     rainnc=xrain_mp, rainncv=xdelta_rain_mp, &
+                     snownc=xsnow_mp, snowncv=xdelta_snow_mp, &
+!                     icenc=ice_mp, icencv=delta_ice_mp,       &
+                     GRPLNC=xgraupel_mp, GRPLNCV=xdelta_graupel_mp, sr=sr, &
+                     dbz      = refl_10cm,             &
+!                     nssl_progn=.false.,              &
+                     diagflag = diagflag,              &
+                     errmsg=errmsg,errflg=errflg,      &
+                     re_cloud=re_cloud_mp,             &
+                     re_ice=re_ice_mp,                 &
+                     re_snow=re_snow_mp,               &
+                     re_rain=re_rain_mp,               &
+                     has_reqc=has_reqc,                & ! ala G. Thompson
+                     has_reqi=has_reqi,                & ! ala G. Thompson
+                     has_reqs=has_reqs,                & ! ala G. Thompson
+                     has_reqr=has_reqr,                &
                   IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
@@ -623,9 +639,10 @@ module mp_nssl
 
            ELSE
 
-         CALL nssl_2mom_driver(                          &
-                    ITIMESTEP=itimestep,                &
-                    ntmul=ntmul, ntcnt = n,             &
+         CALL nssl_2mom_driver(                        &
+                     ITIMESTEP=itimestep,              &
+                     ntmul=ntmultmp, ntcnt = n,           &
+                     lastloop=lastloop,                &
                      tt=tgrs,                          &
                      QV=qv_mp,                         &
                      QC=qc_mp,                         &
@@ -633,39 +650,39 @@ module mp_nssl
                      QI=qi_mp,                         &
                      QS=qs_mp,                         &
                      QH=qh_mp,                         &
-                     QHL=qhl_mp,                        &
+                     QHL=qhl_mp,                       &
 !                     CCW=qnc_mp,                       &
-                     CCW=nc_mp,                    &
-                     CRW=nr_mp,                       &
-                     CCI=ni_mp,                       &
-                     CSW=ns_mp,                       &
-                     CHW=nh_mp,                       &
+                     CCW=nc_mp,                        &
+                     CRW=nr_mp,                        &
+                     CCI=ni_mp,                        &
+                     CSW=ns_mp,                        &
+                     CHW=nh_mp,                        &
                      CHL=nhl_mp,                       &
-                     VHW=vh_mp,                     &
-                     VHL=vhl_mp,                     &
-                !     cn=cccn,                        &
-                     PII=prslk,                         &
-                     P=prsl,                                &
-                     W=w,                                &
-                     DZ=dz,                              &
-                     DTP=dtptmp,                         &
-                     DN=rho,                             &
-                     rainnc=xrain_mp, rainncv=xdelta_rain_mp,                         &
-                     snownc=xsnow_mp, snowncv=xdelta_snow_mp,                         &
-!                     icenc=ice_mp, icencv=delta_ice_mp,                             &
-                     GRPLNC=xgraupel_mp, GRPLNCV=xdelta_graupel_mp, sr=sr,      &
-                     dbz      = refl_10cm,               &
-!                     nssl_progn=.false.,                       &
-                     diagflag = diagflag,                &
-                     errmsg=errmsg,errflg=errflg,        &
-                     re_cloud=re_cloud_mp,                  &
-                     re_ice=re_ice_mp,                      &
-                     re_snow=re_snow_mp,                    &
-                     re_rain=re_rain_mp,                    &
-                     has_reqc=has_reqc,                  & ! ala G. Thompson
-                     has_reqi=has_reqi,                  & ! ala G. Thompson
-                     has_reqs=has_reqs,                  & ! ala G. Thompson
-                     has_reqr=has_reqr,                  &
+                     VHW=vh_mp,                        &
+                     VHL=vhl_mp,                       &
+                !     cn=cccn,                          &
+                     PII=prslk,                        &
+                     P=prsl,                           &
+                     W=w,                              &
+                     DZ=dz,                            &
+                     DTP=dtptmp,                       &
+                     DN=rho,                           &
+                     rainnc=xrain_mp, rainncv=xdelta_rain_mp,  &
+                     snownc=xsnow_mp, snowncv=xdelta_snow_mp,  &
+!                     icenc=ice_mp, icencv=delta_ice_mp,        &
+                     GRPLNC=xgraupel_mp, GRPLNCV=xdelta_graupel_mp, sr=sr, &
+                     dbz      = refl_10cm,             &
+!                     nssl_progn=.false.,               &
+                     diagflag = diagflag,              &
+                     errmsg=errmsg,errflg=errflg,      &
+                     re_cloud=re_cloud_mp,             &
+                     re_ice=re_ice_mp,                 &
+                     re_snow=re_snow_mp,               &
+                     re_rain=re_rain_mp,               &
+                     has_reqc=has_reqc,                & ! ala G. Thompson
+                     has_reqi=has_reqi,                & ! ala G. Thompson
+                     has_reqs=has_reqs,                & ! ala G. Thompson
+                     has_reqr=has_reqr,                &
                   IDS=ids,IDE=ide, JDS=jds,JDE=jde, KDS=kds,KDE=kde, &
                   IMS=ims,IME=ime, JMS=jms,JME=jme, KMS=kms,KME=kme, &
                   ITS=its,ITE=ite, JTS=jts,JTE=jte, KTS=kts,KTE=kte  &
