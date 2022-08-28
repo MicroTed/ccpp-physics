@@ -4,23 +4,27 @@
 !! eddy-diffusion mass-flux (TKE-EDMF) parameterization (by Jongil Han).
 
       module satmedmfvdifq
-
+      use mfpbltq_mod
+      use tridi_mod
+      use mfscuq_mod
       contains
 
-!> \defgroup satmedmfvdifq GFS Scale-aware TKE-based Moist Eddy-Diffusivity Mass-flux (TKE-EDMF, updated version) Scheme Module
-!! @{
+!> \defgroup module_satmedmfvdifq GFS TKE-EDMF PBL Module
+!! This file contains the CCPP-compliant SATMEDMF scheme (updated version) which
+!! computes subgrid vertical turbulence mixing using scale-aware TKE-based moist
+!! eddy-diffusion mass-flux (TKE-EDMF) parameterization (by Jongil Han).
+!> @{
 !! \brief This subroutine contains all of the logic for the
 !! scale-aware TKE-based moist eddy-diffusion mass-flux (TKE-EDMF, updated version) scheme.
 !! For local turbulence mixing, a TKE closure model is used.
 !! Updated version of satmedmfvdif.f (May 2019) to have better low level
 !! inversion, to reduce the cold bias in lower troposphere,
 !! and to reduce the negative wind speed bias in upper troposphere
-
 !> \section arg_table_satmedmfvdifq_init Argument Table
 !! \htmlinclude satmedmfvdifq_init.html
 !!
-      subroutine satmedmfvdifq_init (satmedmf,
-     &                               isatmedmf,isatmedmf_vdifq,
+      subroutine satmedmfvdifq_init (satmedmf,                          &
+     &                               isatmedmf,isatmedmf_vdifq,         &
      &                               errmsg,errflg)
 
       logical, intent(in   ) :: satmedmf
@@ -49,9 +53,6 @@
 
       end subroutine satmedmfvdifq_init
 
-      subroutine satmedmfvdifq_finalize ()
-      end subroutine satmedmfvdifq_finalize
-
 !> \section arg_table_satmedmfvdifq_run Argument Table
 !! \htmlinclude satmedmfvdifq_run.html
 !!
@@ -66,10 +67,9 @@
 !! -# A mass-flux approach is also used to represent the stratocumulus-top-induced turbulence
 !! (mfscuq.f).
 !! \section detail_satmedmfvidfq GFS satmedmfvdifq Detailed Algorithm 
-!! @{
-      subroutine satmedmfvdifq_run(im,km,ntrac,ntcw,ntrw,ntiw,ntke,     &
-     &     grav,rd,cp,rv,hvap,hfus,fv,eps,epsm1,                        &
-     &     dv,du,tdt,rtg,u1,v1,t1,q1,swh,hlw,xmu,garea,zvfun,           &
+      subroutine satmedmfvdifq_run(im,km,progsigma,ntrac,ntcw,ntrw,     &
+     &     ntiw,ntke,grav,rd,cp,rv,hvap,hfus,fv,eps,epsm1,              &
+     &     dv,du,tdt,rtg,tmf,u1,v1,t1,q1,swh,hlw,xmu,garea,zvfun,       &
      &     psk,rbsoil,zorl,u10m,v10m,fm,fh,                             &
      &     tsea,heat,evap,stress,spd1,kpbl,                             &
      &     prsi,del,prsl,prslk,phii,phil,delt,                          &
@@ -91,7 +91,7 @@
       integer, intent(in)  :: sfc_rlm
       integer, intent(in)  :: kinver(:)
       integer, intent(out) :: kpbl(:)
-      logical, intent(in)  :: gen_tend,ldiag3d
+      logical, intent(in)  :: gen_tend,ldiag3d,progsigma
 !
       real(kind=kind_phys), intent(in) :: grav,rd,cp,rv,hvap,hfus,fv,   &
      &                                    eps,epsm1
@@ -99,7 +99,7 @@
       real(kind=kind_phys), intent(in) :: dspfac, bl_upfr, bl_dnfr
       real(kind=kind_phys), intent(in) :: rlmx, elmx
       real(kind=kind_phys), intent(inout) :: dv(:,:),     du(:,:),      &
-     &                     tdt(:,:),    rtg(:,:,:)
+     &                     tdt(:,:),    rtg(:,:,:), tmf(:,:)
       real(kind=kind_phys), intent(in) ::                               &
      &                     u1(:,:),     v1(:,:),                        &
      &                     t1(:,:),     q1(:,:,:),                      &
@@ -138,7 +138,7 @@
       integer i,is,k,n,ndt,km1,kmpbl,kmscu,ntrac1,idtend
       integer kps,kbx,kmx
       integer lcld(im),kcld(im),krad(im),mrad(im)
-      integer kx1(im), kpblx(im)
+      integer kx1(im), kb1(im), kpblx(im)
 !
       real(kind=kind_phys) tke(im,km),  tkeh(im,km-1)
 !
@@ -198,6 +198,7 @@
      &                     q_diff(im,0:km-1,ntrac-1)
       real(kind=kind_phys) rrkp, phkp
       real(kind=kind_phys) tsumn(im), tsump(im), rtnp(im)
+      real(kind=kind_phys) sfcpbl(im)
 !
       logical  pblflg(im), sfcflg(im), flg(im)
       logical  scuflg(im), pcnvflg(im)
@@ -234,6 +235,8 @@
      &                     tem,     tem1,   tem2,   tem3,
      &                     ptem,    ptem0,  ptem1,  ptem2
 !
+      real(kind=kind_phys) slfac
+!
       real(kind=kind_phys) ck0, ck1, ch0, ch1, ce0, rchck
 !
       real(kind=kind_phys) qlcr, zstblmax, hcrinv
@@ -242,7 +245,7 @@
 !!
       parameter(wfac=7.0,cfac=4.5)
       parameter(gamcrt=3.,gamcrq=0.,sfcfrac=0.1)
-      parameter(vk=0.4,rimin=-100.)
+      parameter(vk=0.4,rimin=-100.,slfac=0.1)
       parameter(rbcr=0.25,zolcru=-0.02,tdzmin=1.e-3)
       parameter(rlmn=30.,rlmn0=5.,rlmn1=5.,rlmn2=10.)
       parameter(prmin=0.25,prmax=4.0)
@@ -309,6 +312,14 @@
           zm(i,k) = zi(i,k+1)
         enddo
       enddo
+!>  - Initialize variables needed for prognostic cumulus closure
+      if(progsigma)then
+         do k=1,km
+            do i=1,im
+               tmf(i,k) = 0.
+            enddo
+         enddo
+      endif
 !>  - Compute horizontal grid size (\p gdx)
       do i=1,im
         gdx(i) = sqrt(garea(i))
@@ -573,7 +584,7 @@
       enddo
       enddo
 !
-! Find pbl height based on bulk richardson number (mrf pbl scheme)
+! Find first quess pbl height based on bulk richardson number (mrf pbl scheme)
 !   and also for diagnostic purpose
 !
       do i=1,im
@@ -621,6 +632,73 @@
         hpbl(i) = hpblx(i)
         kpbl(i) = kpblx(i)
         if(kpbl(i) <= 1) pblflg(i)=.false.
+      enddo
+!
+! update thermal at a level of slfac*hpbl for unstable pbl
+!
+      do i=1,im
+        sfcpbl(i) = slfac * hpbl(i)
+        kb1(i) = 1
+        flg(i)  = .false.
+        if(pblflg(i)) then
+          flg(i)  = .true.
+        endif
+      enddo
+      do k = 2, kmpbl
+        do i=1,im
+          if (flg(i) .and. zl(i,k) <= sfcpbl(i)) then
+            kb1(i) = k
+          else
+            flg(i) = .false.
+          endif
+        enddo
+      enddo
+      do i=1,im
+        if(pblflg(i)) kb1(i)=min(kb1(i),kpbl(i))
+      enddo
+!
+! re-compute pbl height with the updated thermal
+!
+      do i=1,im
+        flg(i)  = .true.
+        if(pblflg(i) .and. kb1(i) > 1) then
+          flg(i)  = .false.
+          rbup(i) = rbsoil(i)
+!         thermal(i) = thvx(i,kb1(i))
+          thermal(i) = thlvx(i,kb1(i))
+          kpblx(i) = kb1(i)
+          hpblx(i) = zl(i,kb1(i))
+        endif
+      enddo
+      do k = 2, kmpbl
+      do i = 1, im
+        if(.not.flg(i) .and. k > kb1(i)) then
+          rbdn(i) = rbup(i)
+          spdk2   = max((u1(i,k)**2+v1(i,k)**2),1.)
+!         rbup(i) = (thvx(i,k)-thermal(i))*
+!    &              (g*zl(i,k)/thvx(i,1))/spdk2
+          rbup(i) = (thlvx(i,k)-thermal(i))*
+     &              (g*zl(i,k)/thlvx(i,1))/spdk2
+          kpblx(i) = k
+          flg(i)  = rbup(i) > crb(i)
+        endif
+      enddo
+      enddo
+      do i = 1,im
+        if(pblflg(i) .and. kb1(i) > 1) then
+          k = kpblx(i)
+          if(rbdn(i) >= crb(i)) then
+            rbint = 0.
+          elseif(rbup(i) <= crb(i)) then
+            rbint = 1.
+          else
+            rbint = (crb(i)-rbdn(i))/(rbup(i)-rbdn(i))
+          endif
+          hpblx(i) = zl(i,k-1) + rbint*(zl(i,k)-zl(i,k-1))
+          if(hpblx(i) < zi(i,kpblx(i))) kpblx(i)=kpblx(i)-1
+          hpbl(i) = hpblx(i)
+          kpbl(i) = kpblx(i)
+        endif
       enddo
 !
 !> ## Compute Monin-Obukhov similarity parameters
@@ -716,7 +794,7 @@
       enddo
       do k = 2, kmpbl
       do i = 1, im
-        if(.not.flg(i)) then
+        if(.not.flg(i) .and. k > kb1(i)) then
           rbdn(i) = rbup(i)
           spdk2   = max((u1(i,k)**2+v1(i,k)**2),1.)
           rbup(i) = (thlvx(i,k)-thermal(i))*
@@ -2048,6 +2126,15 @@ c
 !           dqsfc(i)   = dqsfc(i)+conq*del(i,k)*qtend
          enddo
       enddo
+
+      if(progsigma)then
+         do  k = 1,km
+            do i = 1,im
+               tmf(i,k)=(f2(i,k)-q1(i,k,1))*rdt
+            enddo
+         enddo
+      endif
+
       do i = 1,im
         dtsfc(i) = rho_a(i) * cp * heat(i)
         dqsfc(i) = rho_a(i) * hvap * evap(i)
@@ -2241,5 +2328,4 @@ c
       return
       end subroutine satmedmfvdifq_run
 !> @}
-!! @}
       end module satmedmfvdifq
