@@ -32,7 +32,7 @@ module mp_nssl
                               imp_physics, imp_physics_nssl,  &
                               nssl_cccn, nssl_alphah, nssl_alphahl, &
                               nssl_alphar, nssl_ehw0_in, nssl_ehlw0_in,   &
-                              nssl_ccn_on, nssl_hail_on, nssl_invertccn ) 
+                              nssl_ccn_on, nssl_hail_on, nssl_invertccn, nssl_3moment ) 
                               
 
         use module_mp_nssl_2mom, only: nssl_2mom_init, nssl_2mom_init_const
@@ -54,7 +54,7 @@ module mp_nssl
          integer,                   intent(in)    :: imp_physics_nssl
          real(kind_phys),           intent(in)    :: nssl_cccn, nssl_alphah, nssl_alphahl
          real(kind_phys),           intent(in)    :: nssl_alphar, nssl_ehw0_in, nssl_ehlw0_in 
-         logical,                   intent(in)    :: nssl_ccn_on, nssl_hail_on, nssl_invertccn
+         logical,                   intent(in)    :: nssl_ccn_on, nssl_hail_on, nssl_invertccn, nssl_3moment
 
          ! Local variables: dimensions used in nssl_init
          integer               :: ims,ime, jms,jme, kms,kme, nx, nz, i,k
@@ -161,6 +161,7 @@ module mp_nssl
 !                             spechum, cccn, qc, qr, qi, qs, qh, qhl,         &
                              spechum, cccn, cccna, qc, qr, qi, qs, qh, qhl,         &
                              ccw, crw, cci, csw, chw, chl, vh, vhl,          &
+                             zrw, zhw, zhl,                                  &
                               tgrs, prslk, prsl, phii, omega, dtp,           &
                               prcp, rain, graupel, ice, snow, sr,            &
                              refl_10cm, do_radar_ref, first_time_step, restart, &
@@ -168,7 +169,8 @@ module mp_nssl
                              nleffr, nieffr, nseffr, nreffr,                 &
                              imp_physics, convert_dry_rho,                   &
                              imp_physics_nssl, nssl_ccn_on,                  &
-                             nssl_hail_on, nssl_invertccn, ntccn, ntccna,    &
+                             nssl_hail_on, nssl_invertccn, nssl_3moment,     &
+                             ntccn, ntccna,    &
                              errflg, errmsg)
 
         use module_mp_nssl_2mom, only: calcnfromq, na
@@ -197,6 +199,9 @@ module mp_nssl
          real(kind_phys),           intent(inout) :: chl(:,:) !(1:ncol,1:nlev) hail number
          real(kind_phys),           intent(inout) :: vh (:,:) !(1:ncol,1:nlev) graupel volume 
          real(kind_phys),           intent(inout) :: vhl(:,:) !(1:ncol,1:nlev) hail volume
+         real(kind_phys),           intent(inout) :: zrw(:,:) !(1:ncol,1:nlev) rain reflectivity
+         real(kind_phys),           intent(inout) :: zhw(:,:) !(1:ncol,1:nlev) graupel reflectivity
+         real(kind_phys),           intent(inout) :: zhl(:,:) !(1:ncol,1:nlev) hail reflectivity
          ! State variables and timestep information
          real(kind_phys),           intent(inout) :: tgrs (:,:) !(1:ncol,1:nlev)
          real(kind_phys),           intent(in   ) :: prsl (:,:) !(1:ncol,1:nlev)
@@ -223,7 +228,7 @@ module mp_nssl
          integer, intent(in) :: nleffr, nieffr, nseffr, nreffr
          integer,                   intent(in)    :: imp_physics
          integer,                   intent(in)    :: imp_physics_nssl
-         logical,                   intent(in)    :: nssl_ccn_on, nssl_hail_on, nssl_invertccn
+         logical,                   intent(in)    :: nssl_ccn_on, nssl_hail_on, nssl_invertccn, nssl_3moment
          integer,                   intent(in)    :: ntccn, ntccna
         
         integer,          intent(out)   :: errflg
@@ -256,6 +261,9 @@ module mp_nssl
          ! create temporaries for hail in case it does not exist
          !real(kind_phys) :: chl_mp(1:ncol,1:nlev)           !< kg-1 (number mixing ratio)
          real(kind_phys) :: vhl_mp(1:ncol,1:nlev)           !< m3 kg-1 (volume mixing ratio)
+         real(kind_phys) :: zrw_mp(1:ncol,1:nlev)           !< m6 kg-1 (reflectivity)
+         real(kind_phys) :: zhw_mp(1:ncol,1:nlev)           !< m6 kg-1 (reflectivity)
+         real(kind_phys) :: zhl_mp(1:ncol,1:nlev)           !< m6 kg-1 (reflectivity)
          ! Vertical velocity and level width
          real(kind_phys) :: w(1:ncol,1:nlev)                !< m s-1
          real(kind_phys) :: dz(1:ncol,1:nlev)               !< m
